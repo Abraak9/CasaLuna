@@ -27,6 +27,8 @@ export default function OrdersPage() {
   const { id } = useParams<{ id: string }>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState('paid');
+  const [resending, setResending] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<Record<string, 'sent' | 'error'>>({});
 
   useEffect(() => {
     fetch(`/api/admin/events/${id}/orders`)
@@ -35,6 +37,23 @@ export default function OrdersPage() {
   }, [id]);
 
   const filtered = orders.filter(o => filter === 'all' || o.status === filter);
+
+  const handleResend = async (orderId: string) => {
+    setResending(orderId);
+    try {
+      const res = await fetch('/api/admin/resend-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      setResendStatus(s => ({ ...s, [orderId]: res.ok ? 'sent' : 'error' }));
+    } catch {
+      setResendStatus(s => ({ ...s, [orderId]: 'error' }));
+    } finally {
+      setResending(null);
+      setTimeout(() => setResendStatus(s => { const n = { ...s }; delete n[orderId]; return n; }), 3000);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     paid: 'bg-green-100 text-green-700',
@@ -65,7 +84,7 @@ export default function OrdersPage() {
         {filtered.map(order => (
           <div key={order.id} className="bg-white rounded-2xl border border-gray-100 p-4">
             <div className="flex items-start justify-between">
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-mono text-xs text-gray-400">#{order.id.slice(0, 8).toUpperCase()}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-500'}`}>
@@ -80,11 +99,25 @@ export default function OrdersPage() {
                   {new Date(order.created_at).toLocaleString('en-GB')}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex flex-col items-end gap-2">
                 <p className="font-bold">€{Number(order.total_amount).toFixed(0)}</p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-400">
                   {order.checked_in_count}/{order.attendee_count} checked in
                 </p>
+                {order.status === 'paid' && (
+                  <button
+                    onClick={() => handleResend(order.id)}
+                    disabled={resending === order.id}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors
+                      ${resendStatus[order.id] === 'sent' ? 'bg-green-100 text-green-700' :
+                        resendStatus[order.id] === 'error' ? 'bg-red-100 text-red-600' :
+                        'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {resending === order.id ? 'Sending...' :
+                      resendStatus[order.id] === 'sent' ? '✓ Sent' :
+                      resendStatus[order.id] === 'error' ? '✗ Failed' :
+                      '✉ Resend tickets'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
