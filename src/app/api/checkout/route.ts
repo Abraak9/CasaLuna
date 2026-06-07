@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Not enough tickets available for "${tt.name_es}"` }, { status: 400 });
       }
 
-      const price = getCurrentPrice(tt as Parameters<typeof getCurrentPrice>[0]);
+      const price = getCurrentPrice(tt as unknown as Parameters<typeof getCurrentPrice>[0]);
       const subtotal = price * item.quantity;
       totalAmount += subtotal;
 
@@ -99,10 +99,12 @@ export async function POST(req: NextRequest) {
       );
 
       for (const item of items) {
-        const tt = await queryOne<{ id: string; base_price: number; price_scaling: string }>(
-          `SELECT * FROM ticket_types WHERE id = $1`, [item.ticket_type_id]
+        const tt = await queryOne<{ id: string; base_price: number; price_scaling: string; stock_total: number; stock_sold: number; price_tiers?: { valid_until: string; price: number; sort_order: number }[] }>(
+          `SELECT tt.*, json_agg(pt ORDER BY pt.sort_order) FILTER (WHERE pt.id IS NOT NULL) AS price_tiers
+           FROM ticket_types tt LEFT JOIN price_tiers pt ON pt.ticket_type_id = tt.id
+           WHERE tt.id = $1 GROUP BY tt.id`, [item.ticket_type_id]
         );
-        const price = getCurrentPrice(tt as Parameters<typeof getCurrentPrice>[0]);
+        const price = getCurrentPrice(tt as unknown as Parameters<typeof getCurrentPrice>[0]);
         const orderItemId = uuidv4();
 
         await client.query(
