@@ -41,7 +41,7 @@ export default function NewEventPage() {
         description_es: form.description,
         slug: form.slug,
         date: form.date,
-        end_date: form.end_date,
+        end_date: form.end_date || null,
         location_name: form.location_name,
         location_address: form.location_address,
         location_city: form.location_city,

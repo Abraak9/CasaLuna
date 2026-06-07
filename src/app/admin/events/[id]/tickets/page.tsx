@@ -105,7 +105,13 @@ export default function TicketConfigPage() {
       ? `/api/admin/tickets/${editingId}`
       : `/api/admin/events/${eventId}/tickets`;
     const method = editingId ? 'PUT' : 'POST';
-    const payload = { ...form, name_es: form.name_en, description_es: form.description_en };
+    const payload = {
+      ...form,
+      name_es: form.name_en,
+      description_es: form.description_en,
+      available_from: form.available_from || null,
+      available_until: form.available_until || null,
+    };
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
