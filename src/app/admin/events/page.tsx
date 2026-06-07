@@ -11,19 +11,23 @@ interface EventRow {
   status: string;
   tickets_sold: number;
   tickets_total: number;
+  orders_paid: number;
   revenue: number;
 }
 
 export default async function AdminEventsPage() {
   await auth();
   const events = await query<EventRow>(`
-    SELECT e.id, e.slug, e.name_es, e.name_en, e.date, e.status,
-      COALESCE(SUM(tt.stock_sold), 0) AS tickets_sold,
+    SELECT
+      e.id, e.slug, e.name_es, e.name_en, e.date, e.status,
       COALESCE(SUM(tt.stock_total), 0) AS tickets_total,
+      COUNT(DISTINCT a.id) FILTER (WHERE o.status = 'paid') AS tickets_sold,
+      COUNT(DISTINCT o.id) FILTER (WHERE o.status = 'paid') AS orders_paid,
       COALESCE(SUM(o.total_amount) FILTER (WHERE o.status = 'paid'), 0) AS revenue
     FROM events e
     LEFT JOIN ticket_types tt ON tt.event_id = e.id
     LEFT JOIN orders o ON o.event_id = e.id
+    LEFT JOIN attendees a ON a.order_id = o.id
     GROUP BY e.id ORDER BY e.date DESC
   `);
 
@@ -65,7 +69,8 @@ export default async function AdminEventsPage() {
                     {new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                   <div className="flex gap-4 mt-2 text-sm text-gray-500">
-                    <span>{event.tickets_sold}/{event.tickets_total} tickets</span>
+                    <span>{Number(event.tickets_sold)} tickets sold</span>
+                    <span>{Number(event.orders_paid)} orders</span>
                     <span>€{Number(event.revenue).toFixed(0)} revenue</span>
                   </div>
                 </div>

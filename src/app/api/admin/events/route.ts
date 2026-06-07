@@ -9,13 +9,14 @@ export async function GET() {
 
   const events = await query(`
     SELECT e.*,
-      COALESCE(SUM(tt.stock_sold), 0) AS tickets_sold,
       COALESCE(SUM(tt.stock_total), 0) AS tickets_total,
+      COUNT(DISTINCT a.id) FILTER (WHERE o.status = 'paid') AS tickets_sold,
       COUNT(DISTINCT o.id) FILTER (WHERE o.status = 'paid') AS orders_count,
       COALESCE(SUM(o.total_amount) FILTER (WHERE o.status = 'paid'), 0) AS revenue
     FROM events e
     LEFT JOIN ticket_types tt ON tt.event_id = e.id
     LEFT JOIN orders o ON o.event_id = e.id
+    LEFT JOIN attendees a ON a.order_id = o.id
     GROUP BY e.id
     ORDER BY e.date DESC
   `);
