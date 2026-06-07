@@ -1,0 +1,166 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { queryOne, query } from '@/lib/db';
+import pool from '@/lib/db';
+import { getCurrentPrice } from '@/lib/pricing';
+import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
+
+const AttendeeSchema = z.object({
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  gender: z.string().optional(),
+  role: z.string().optional(),
+  passport_number: z.string().optional(),
+  residence_country: z.string().optional(),
+  residence_city: z.string().optional(),
+});
+
+const OrderItemSchema = z.object({
+  ticket_type_id: z.string().uuid(),
+  quantity: z.number().int().min(1).max(10),
+  attendees: z.array(AttendeeSchema),
+});
+
+const CheckoutSchema = z.object({
+  event_slug: z.string(),
+  email: z.string().email(),
+  items: z.array(OrderItemSchema).min(1),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { event_slug, email, items } = CheckoutSchema.parse(body);
+
+    // Verify event exists
+    const event = await queryOne<{ id: string; name_es: string; name_en: string }>(
+      `SELECT id, name_es, name_en FROM events WHERE slug = $1 AND status = 'published'`,
+      [event_slug]
+    );
+    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+    // Validate ticket types and build line items
+    const lineItems = [];
+    let totalAmount = 0;
+
+    for (const item of items) {
+      const tt = await queryOne<{
+        id: string; name_es: string; name_en: string;
+        stock_total: number; stock_sold: number;
+        price_scaling: 'fixed' | 'by_date' | 'by_stock';
+        base_price: number; event_id: string;
+      }>(
+        `SELECT tt.*, json_agg(pt ORDER BY pt.sort_order) FILTER (WHERE pt.id IS NOT NULL) AS price_tiers
+         FROM ticket_types tt
+         LEFT JOIN price_tiers pt ON pt.ticket_type_id = tt.id
+         WHERE tt.id = $1 AND tt.event_id = $2
+         GROUP BY tt.id`,
+        [item.ticket_type_id, event.id]
+      );
+
+      if (!tt) return NextResponse.json({ error: `Ticket type not found` }, { status: 400 });
+
+      const available = tt.stock_total - tt.stock_sold;
+      if (available < item.quantity) {
+        return NextResponse.json({ error: `Not enough tickets available for "${tt.name_es}"` }, { status: 400 });
+      }
+
+      const price = getCurrentPrice(tt as Parameters<typeof getCurrentPrice>[0]);
+      const subtotal = price * item.quantity;
+      totalAmount += subtotal;
+
+      lineItems.push({
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: tt.name_en || tt.name_es,
+            description: `${event.name_en || event.name_es}`,
+          },
+          unit_amount: Math.round(price * 100), // cents
+        },
+        quantity: item.quantity,
+      });
+    }
+
+    // Create order in DB
+    const orderId = uuidv4();
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `INSERT INTO orders (id, event_id, email, status, total_amount, currency)
+         VALUES ($1, $2, $3, 'pending', $4, 'EUR')`,
+        [orderId, event.id, email, totalAmount]
+      );
+
+      for (const item of items) {
+        const tt = await queryOne<{ id: string; base_price: number; price_scaling: string }>(
+          `SELECT * FROM ticket_types WHERE id = $1`, [item.ticket_type_id]
+        );
+        const price = getCurrentPrice(tt as Parameters<typeof getCurrentPrice>[0]);
+        const orderItemId = uuidv4();
+
+        await client.query(
+          `INSERT INTO order_items (id, order_id, ticket_type_id, quantity, unit_price, subtotal)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [orderItemId, orderId, item.ticket_type_id, item.quantity, price, price * item.quantity]
+        );
+
+        // Create attendee placeholders (filled with user-provided data)
+        for (const attendee of item.attendees) {
+          await client.query(
+            `INSERT INTO attendees
+               (id, order_id, ticket_type_id, order_item_id, qr_code,
+                first_name, last_name, email, phone, gender, role,
+                passport_number, residence_country, residence_city)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [
+              uuidv4(), orderId, item.ticket_type_id, orderItemId, uuidv4(),
+              attendee.first_name, attendee.last_name, attendee.email || email,
+              attendee.phone, attendee.gender, attendee.role,
+              attendee.passport_number, attendee.residence_country, attendee.residence_city,
+            ]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      customer_email: email,
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/order/${orderId}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/event/${event_slug}`,
+      metadata: { order_id: orderId },
+    });
+
+    // Save session ID to order
+    await query(
+      `UPDATE orders SET stripe_session_id = $1 WHERE id = $2`,
+      [session.id, orderId]
+    );
+
+    return NextResponse.json({ url: session.url });
+
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid request', details: err.errors }, { status: 400 });
+    }
+    console.error('Checkout error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
