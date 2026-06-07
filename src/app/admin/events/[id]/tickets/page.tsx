@@ -95,17 +95,28 @@ export default function TicketConfigPage() {
     setForm(f => ({ ...f, price_tiers: f.price_tiers.map((t, ti) => ti === i ? { ...t, [field]: val } : t) }));
   const removeTier = (i: number) => setForm(f => ({ ...f, price_tiers: f.price_tiers.filter((_, ti) => ti !== i) }));
 
+  const [saveError, setSaveError] = useState('');
+
   const save = async () => {
+    if (!form.name_en) { setSaveError('Ticket name is required'); return; }
     setSaving(true);
+    setSaveError('');
     const url = editingId
       ? `/api/admin/tickets/${editingId}`
       : `/api/admin/events/${eventId}/tickets`;
     const method = editingId ? 'PUT' : 'POST';
-    await fetch(url, {
+    const payload = { ...form, name_es: form.name_en, description_es: form.description_en };
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(data.error || `Error ${res.status} — check Vercel logs`);
+      setSaving(false);
+      return;
+    }
     load();
     setShowForm(false);
     setSaving(false);
@@ -335,8 +346,9 @@ export default function TicketConfigPage() {
           </div>
 
           {/* Form Actions */}
+          {saveError && <p className="text-red-500 text-sm px-5">{saveError}</p>}
           <div className="flex gap-3 px-5 pb-5">
-            <button onClick={() => setShowForm(false)} className="flex-none border border-gray-200 text-gray-600 font-medium py-2.5 px-5 rounded-xl text-sm">
+            <button onClick={() => { setShowForm(false); setSaveError(''); }} className="flex-none border border-gray-200 text-gray-600 font-medium py-2.5 px-5 rounded-xl text-sm">
               Cancel
             </button>
             <button onClick={save} disabled={saving} className="flex-1 cl-gradient text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-70">
