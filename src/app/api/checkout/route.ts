@@ -9,13 +9,13 @@ import { v4 as uuidv4 } from 'uuid';
 const AttendeeSchema = z.object({
   first_name: z.string().optional().default(''),
   last_name: z.string().optional().default(''),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-  gender: z.string().optional(),
-  role: z.string().optional(),
-  passport_number: z.string().optional(),
-  residence_country: z.string().optional(),
-  residence_city: z.string().optional(),
+  email: z.union([z.string().email(), z.literal(''), z.undefined()]).optional(),
+  phone: z.string().optional().default(''),
+  gender: z.string().optional().default(''),
+  role: z.string().optional().default(''),
+  passport_number: z.string().optional().default(''),
+  residence_country: z.string().optional().default(''),
+  residence_city: z.string().optional().default(''),
 });
 
 const OrderItemSchema = z.object({
