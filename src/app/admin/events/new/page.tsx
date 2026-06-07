@@ -9,8 +9,7 @@ export default function NewEventPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
-    name_es: '', name_en: '',
-    description_es: '', description_en: '',
+    name: '', description: '',
     slug: '', date: '', end_date: '',
     location_name: '', location_address: '', location_city: '',
     cover_image_url: '', checkin_pin: '', max_capacity: '',
@@ -20,8 +19,7 @@ export default function NewEventPage() {
   const set = (field: string, value: string) => {
     setForm(f => {
       const next = { ...f, [field]: value };
-      // Auto-generate slug from Spanish name
-      if (field === 'name_es') {
+      if (field === 'name') {
         next.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       }
       return next;
@@ -36,7 +34,22 @@ export default function NewEventPage() {
     const res = await fetch('/api/admin/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, max_capacity: form.max_capacity ? Number(form.max_capacity) : null }),
+      body: JSON.stringify({
+        name_en: form.name,
+        name_es: form.name,
+        description_en: form.description,
+        description_es: form.description,
+        slug: form.slug,
+        date: form.date,
+        end_date: form.end_date,
+        location_name: form.location_name,
+        location_address: form.location_address,
+        location_city: form.location_city,
+        cover_image_url: form.cover_image_url,
+        checkin_pin: form.checkin_pin,
+        max_capacity: form.max_capacity ? Number(form.max_capacity) : null,
+        status: form.status,
+      }),
     });
 
     if (!res.ok) {
@@ -60,17 +73,11 @@ export default function NewEventPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
           <h2 className="font-semibold text-gray-700">Event Info</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Name (Spanish) *</label>
-              <input value={form.name_es} onChange={e => set('name_es', e.target.value)} required
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Name (English)</label>
-              <input value={form.name_en} onChange={e => set('name_en', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
-            </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Event Name *</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} required
+              placeholder="e.g. La Luna Social Night"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
           </div>
 
           <div>
@@ -83,13 +90,9 @@ export default function NewEventPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Description (Spanish)</label>
-            <textarea value={form.description_es} onChange={e => set('description_es', e.target.value)} rows={3}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400 resize-none" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Description (English)</label>
-            <textarea value={form.description_en} onChange={e => set('description_en', e.target.value)} rows={3}
+            <label className="text-xs font-medium text-gray-500 block mb-1">Description</label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4}
+              placeholder="Tell attendees what to expect..."
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400 resize-none" />
           </div>
         </div>
@@ -111,6 +114,7 @@ export default function NewEventPage() {
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Venue name</label>
             <input value={form.location_name} onChange={e => set('location_name', e.target.value)}
+              placeholder="e.g. Studio 54"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
           </div>
           <div className="grid grid-cols-2 gap-4">

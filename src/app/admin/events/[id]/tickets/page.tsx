@@ -183,26 +183,16 @@ export default function TicketConfigPage() {
             {/* General Tab */}
             {activeTab === 'general' && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-500">Name (Spanish) *</label>
-                    <input value={form.name_es} onChange={e => set('name_es', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Name (English)</label>
-                    <input value={form.name_en} onChange={e => set('name_en', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
-                  </div>
+                <div>
+                  <label className="text-xs text-gray-500">Ticket Name *</label>
+                  <input value={form.name_en} onChange={e => { set('name_en', e.target.value); set('name_es', e.target.value); }}
+                    placeholder="e.g. Couple Pass"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Description (Spanish)</label>
-                  <textarea value={form.description_es} onChange={e => set('description_es', e.target.value)} rows={2}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 resize-none" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">Description (English)</label>
-                  <textarea value={form.description_en} onChange={e => set('description_en', e.target.value)} rows={2}
+                  <label className="text-xs text-gray-500">Description</label>
+                  <textarea value={form.description_en} onChange={e => { set('description_en', e.target.value); set('description_es', e.target.value); }} rows={2}
+                    placeholder="What's included in this ticket..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 resize-none" />
                 </div>
 
