@@ -7,8 +7,8 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
 const AttendeeSchema = z.object({
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
+  first_name: z.string().optional().default(''),
+  last_name: z.string().optional().default(''),
   email: z.string().email().optional(),
   phone: z.string().optional(),
   gender: z.string().optional(),
