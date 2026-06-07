@@ -1,58 +1,92 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 interface QRScannerProps {
   onScan: (token: string) => void;
 }
 
 export default function QRScanner({ onScan }: QRScannerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scannerRef = useRef<{ clear: () => Promise<void> } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number>(0);
   const lastScanRef = useRef<string>('');
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
+
+  const tick = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      animFrameRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Use jsQR for decoding
+    import('jsqr').then(({ default: jsQR }) => {
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      });
+
+      if (code && code.data && code.data !== lastScanRef.current) {
+        lastScanRef.current = code.data;
+        onScanRef.current(code.data);
+      }
+    });
+
+    animFrameRef.current = requestAnimationFrame(tick);
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function startScanner() {
-      if (!containerRef.current) return;
-
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const scanner = new Html5Qrcode('qr-reader');
-      scannerRef.current = scanner;
-
+    async function startCamera() {
       try {
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
-          (decodedText: string) => {
-            if (!mounted) return;
-            if (decodedText === lastScanRef.current) return;
-            lastScanRef.current = decodedText;
-            onScan(decodedText);
-          },
-          () => {} // ignore scan errors (camera looking for QR)
-        );
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play();
+          animFrameRef.current = requestAnimationFrame(tick);
+        }
       } catch (err) {
-        console.error('Camera start failed:', err);
+        console.error('Camera error:', err);
       }
     }
 
-    startScanner();
+    startCamera();
 
     return () => {
-      mounted = false;
-      scannerRef.current?.clear().catch(() => {});
+      cancelAnimationFrame(animFrameRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, [onScan]);
+  }, [tick]);
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-black">
-      <div id="qr-reader" className="w-full h-full" />
+    <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        playsInline
+        muted
+        autoPlay
+      />
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Scan frame overlay */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="w-64 h-64 relative">
