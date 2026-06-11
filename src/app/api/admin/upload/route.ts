@@ -23,7 +23,12 @@ export async function POST(req: NextRequest) {
   const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
   const filename = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-  const blob = await put(filename, file, { access: 'public' });
-
-  return NextResponse.json({ url: blob.url });
+  try {
+    const blob = await put(filename, file, { access: 'public' });
+    return NextResponse.json({ url: blob.url });
+  } catch (err) {
+    console.error('[upload] Blob put failed:', err);
+    const msg = err instanceof Error ? err.message : 'Blob storage error';
+    return NextResponse.json({ error: `Upload failed: ${msg}` }, { status: 500 });
+  }
 }
