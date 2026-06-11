@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ImageUpload from '@/components/ImageUpload';
 
 const LABEL: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' };
 const INPUT: React.CSSProperties = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', outline: 'none' };
@@ -115,8 +116,8 @@ export default function NewEventPage() {
         <div style={CARD}>
           <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '2px' }}>Settings</p>
           <div>
-            <label style={LABEL}>Cover Image URL</label>
-            <input type="url" value={form.cover_image_url} onChange={e => set('cover_image_url', e.target.value)} placeholder="https://..." style={INPUT} />
+            <label style={LABEL}>Cover Image</label>
+            <ImageUpload value={form.cover_image_url} onChange={url => set('cover_image_url', url)} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>

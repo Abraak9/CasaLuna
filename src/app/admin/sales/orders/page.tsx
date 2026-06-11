@@ -67,17 +67,21 @@ export default function SalesOrdersPage() {
 
   const handleExpire = async () => {
     setExpiring(true); setExpireMsg('');
-    const res = await fetch('/api/cron/expire-orders');
-    const d = await res.json();
-    setExpireMsg(d.expired > 0 ? `${d.expired} order${d.expired > 1 ? 's' : ''} marked expired` : 'Nothing to expire');
-    setExpiring(false);
-    // Refresh list if we're on pending or all
-    if (filter === 'pending' || filter === 'all') {
+    try {
+      const res = await fetch('/api/admin/orders/expire', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { setExpireMsg('Error: ' + (d.error || res.status)); return; }
+      setExpireMsg(d.expired > 0 ? `${d.expired} order${d.expired > 1 ? 's' : ''} marked expired` : 'Nothing to expire');
+      // Refresh list
       const params = new URLSearchParams({ status: filter, limit: '200' });
       if (search) params.set('search', search);
       fetch(`/api/admin/sales?${params}`).then(r => r.json()).then(setOrders);
+      setTimeout(() => setExpireMsg(''), 4000);
+    } catch (e) {
+      setExpireMsg('Request failed');
+    } finally {
+      setExpiring(false);
     }
-    setTimeout(() => setExpireMsg(''), 4000);
   };
 
   return (
