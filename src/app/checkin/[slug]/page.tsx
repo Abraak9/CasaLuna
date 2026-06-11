@@ -1,14 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
-// Dynamically import scanner to avoid SSR issues
-const Html5QrcodeScanner = dynamic(
-  () => import('@/components/QRScanner'),
-  { ssr: false }
-);
+const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false });
 
 type ScanResult = {
   status: 'success' | 'already_scanned' | 'invalid';
@@ -16,11 +12,7 @@ type ScanResult = {
   attendee?: { name: string; ticket: string };
 };
 
-type EventInfo = {
-  id: string;
-  name: string;
-  date: string;
-};
+type EventInfo = { id: string; name: string; date: string; };
 
 export default function CheckinPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -40,18 +32,13 @@ export default function CheckinPage() {
       body: JSON.stringify({ slug, pin: pinInput }),
     });
     const data = await res.json();
-    if (res.ok && data.valid) {
-      setEventInfo(data.event);
-      setVerified(true);
-    } else {
-      setPinError('Incorrect PIN. Please try again.');
-    }
+    if (res.ok && data.valid) { setEventInfo(data.event); setVerified(true); }
+    else { setPinError('Incorrect PIN. Try again.'); }
   };
 
   const handleScan = async (token: string) => {
     if (!scanning || !eventInfo) return;
     setScanning(false);
-
     const res = await fetch('/api/checkin/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,98 +46,120 @@ export default function CheckinPage() {
     });
     const data: ScanResult = await res.json();
     setScanResult(data);
-
-    // Auto-clear and re-enable scanning after 3s
     if (resultTimeout.current) clearTimeout(resultTimeout.current);
-    resultTimeout.current = setTimeout(() => {
-      setScanResult(null);
-      setScanning(true);
-    }, 3000);
+    resultTimeout.current = setTimeout(() => { setScanResult(null); setScanning(true); }, 3000);
   };
 
-  // PIN Entry Screen
+  // ── PIN screen ─────────────────────────────────────────────────
   if (!verified) {
     return (
-      <main className="min-h-screen bg-gray-900 flex flex-col items-center justify-center px-6">
-        <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🎟️</div>
-          <h1 className="text-white text-2xl font-bold">Check-in Scanner</h1>
-          <p className="text-gray-400 text-sm mt-1">Casa Luna Events</p>
+      <main style={{ minHeight: '100vh', background: '#09090f', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '28px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }} className="cl-gold-text">
+            Casa Luna
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>Check-in Scanner</p>
         </div>
 
-        <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
-          <label className="text-gray-300 text-sm font-medium block mb-2">Event PIN</label>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '320px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
+            Event PIN
+          </label>
           <input
             type="number"
             value={pinInput}
             onChange={e => setPinInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && verifyPin()}
-            placeholder="Enter PIN"
-            className="w-full bg-gray-700 text-white text-center text-2xl font-bold tracking-widest rounded-xl px-4 py-4 border border-gray-600 focus:outline-none focus:border-pink-500 mb-3"
-            maxLength={6}
+            placeholder="·····"
+            maxLength={8}
+            style={{
+              width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
+              color: 'var(--gold)', borderRadius: '10px', padding: '16px',
+              fontSize: '28px', fontWeight: 700, textAlign: 'center', letterSpacing: '0.3em',
+              outline: 'none', marginBottom: '12px',
+            }}
+            autoFocus
           />
-          {pinError && <p className="text-red-400 text-sm text-center mb-3">{pinError}</p>}
-          <button
-            onClick={verifyPin}
-            className="w-full cl-gradient text-white font-bold py-3.5 rounded-xl text-base"
-          >
-            Enter →
+          {pinError && <p style={{ color: 'var(--red)', fontSize: '13px', textAlign: 'center', marginBottom: '12px' }}>{pinError}</p>}
+          <button onClick={verifyPin} style={{
+            width: '100%', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f',
+            fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase',
+            padding: '14px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+          }}>
+            Enter Scanner →
           </button>
         </div>
       </main>
     );
   }
 
-  // Scanner Screen
-  const resultColors = {
-    success: 'bg-green-500',
-    already_scanned: 'bg-amber-500',
-    invalid: 'bg-red-500',
+  // ── Scanner screen ──────────────────────────────────────────────
+  const RESULT_BG: Record<string, string> = {
+    success: '#1a3d2a',
+    already_scanned: '#3d2a00',
+    invalid: '#3d1a1a',
   };
-
-  const resultIcons = {
-    success: '✓',
-    already_scanned: '⚠',
-    invalid: '✗',
+  const RESULT_COLOR: Record<string, string> = {
+    success: 'var(--green)',
+    already_scanned: 'var(--amber)',
+    invalid: 'var(--red)',
+  };
+  const RESULT_ICON: Record<string, string> = {
+    success: '✓', already_scanned: '⚠', invalid: '✗',
   };
 
   return (
-    <main className="min-h-screen bg-gray-900 flex flex-col">
+    <main style={{ minHeight: '100vh', background: '#09090f', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
+      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border-muted)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <p className="text-white font-semibold text-sm">{eventInfo?.name}</p>
-          <p className="text-gray-400 text-xs">
+          <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>{eventInfo?.name}</p>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             {eventInfo?.date ? new Date(eventInfo.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
           </p>
         </div>
-        <span className="text-green-400 text-xs font-medium bg-green-400/10 px-2 py-1 rounded-full">● Live</span>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green)', background: 'rgba(92,184,138,0.12)', padding: '4px 12px', borderRadius: '999px', letterSpacing: '0.06em' }}>
+          ● LIVE
+        </span>
       </div>
 
-      {/* Camera Scanner */}
-      <div className="flex-1 relative overflow-hidden">
-        {scanning && <Html5QrcodeScanner onScan={handleScan} />}
+      {/* Camera */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {scanning && <QRScanner onScan={handleScan} />}
 
-        {/* Scan result overlay */}
         {scanResult && (
-          <div className={`absolute inset-0 ${resultColors[scanResult.status]} flex flex-col items-center justify-center px-8 text-white text-center`}>
-            <div className="text-7xl font-bold mb-4">{resultIcons[scanResult.status]}</div>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: RESULT_BG[scanResult.status],
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '32px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '80px', fontWeight: 700, color: RESULT_COLOR[scanResult.status], lineHeight: 1, marginBottom: '16px' }}>
+              {RESULT_ICON[scanResult.status]}
+            </div>
             {scanResult.attendee && (
               <>
-                <p className="text-2xl font-bold mb-1">{scanResult.attendee.name}</p>
-                <p className="text-white/80 text-sm mb-4">{scanResult.attendee.ticket}</p>
+                <p style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', marginBottom: '4px', fontFamily: 'var(--font-cormorant)' }}>
+                  {scanResult.attendee.name}
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                  {scanResult.attendee.ticket}
+                </p>
               </>
             )}
-            <p className="text-lg font-medium">{scanResult.message}</p>
-            <p className="text-white/60 text-sm mt-6">Scanning again in 3s...</p>
+            <p style={{ fontSize: '16px', fontWeight: 600, color: RESULT_COLOR[scanResult.status] }}>
+              {scanResult.message}
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '24px', letterSpacing: '0.04em' }}>
+              Scanning again in 3s…
+            </p>
           </div>
         )}
       </div>
 
-      {/* Bottom hint */}
       {scanning && !scanResult && (
-        <div className="bg-gray-800 px-4 py-4 text-center">
-          <p className="text-gray-400 text-sm">Point camera at QR code</p>
+        <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border-muted)', padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Point camera at QR code</p>
         </div>
       )}
     </main>

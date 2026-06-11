@@ -15,13 +15,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
+    const result = await signIn('credentials', { email, password, redirect: false });
     if (result?.error) {
       setError('Invalid email or password.');
       setLoading(false);
@@ -31,29 +25,87 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-sm">
-        <div className="text-center mb-6">
-          <div className="cl-gradient text-white text-2xl font-bold w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3">CL</div>
-          <h1 className="text-xl font-bold">Casa Luna Admin</h1>
-          <p className="text-gray-500 text-sm">Sign in to manage events</p>
+    <main style={{
+      minHeight: '100vh', background: 'var(--bg)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px',
+    }}>
+      {/* Glow */}
+      <div style={{
+        position: 'fixed', top: '40%', left: '50%', transform: 'translate(-50%,-50%)',
+        width: '400px', height: '400px',
+        background: 'radial-gradient(ellipse, rgba(201,168,92,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: '20px', padding: '48px 36px',
+        maxWidth: '380px', width: '100%',
+        position: 'relative', zIndex: 1,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <p style={{
+            fontFamily: 'var(--font-cormorant)',
+            fontSize: '32px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+          }} className="cl-gold-text">
+            Casa Luna
+          </p>
+          <p style={{ fontSize: '12px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)', marginTop: '4px' }}>
+            Admin Portal
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+            <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              style={{
+                background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
+                color: 'var(--text)', borderRadius: '10px', padding: '12px 14px',
+                fontSize: '14px', width: '100%', outline: 'none',
+              }}
+            />
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+            <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              style={{
+                background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
+                color: 'var(--text)', borderRadius: '10px', padding: '12px 14px',
+                fontSize: '14px', width: '100%', outline: 'none',
+              }}
+            />
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full cl-gradient text-white font-bold py-3 rounded-xl text-sm disabled:opacity-70">
-            {loading ? 'Signing in...' : 'Sign In'}
+          {error && (
+            <p style={{ color: 'var(--red)', fontSize: '13px', textAlign: 'center' }}>{error}</p>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: '4px',
+              background: loading ? 'var(--surface-3)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
+              color: loading ? 'var(--text-muted)' : '#09090f',
+              fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase',
+              padding: '16px', borderRadius: '12px', border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Signing in…' : 'Sign In →'}
           </button>
         </form>
       </div>

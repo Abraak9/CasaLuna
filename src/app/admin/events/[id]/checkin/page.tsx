@@ -4,57 +4,30 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
-interface Stats {
-  total_sold: number;
-  checked_in: number;
-  not_checked_in: number;
-}
-
-interface TicketStat {
-  name_es: string;
-  name_en: string;
-  total: number;
-  checked_in: number;
-}
-
-interface RecentCheckin {
-  first_name: string;
-  last_name: string;
-  checked_in_at: string;
-  name_es: string;
-  name_en: string;
-}
-
-interface CheckinData {
-  stats: Stats;
-  byTicketType: TicketStat[];
-  recentCheckins: RecentCheckin[];
-}
+interface Stats { total_sold: number; checked_in: number; not_checked_in: number; }
+interface TicketStat { name_es: string; name_en: string; total: number; checked_in: number; }
+interface RecentCheckin { first_name: string; last_name: string; checked_in_at: string; name_es: string; name_en: string; }
+interface CheckinData { stats: Stats; byTicketType: TicketStat[]; recentCheckins: RecentCheckin[]; }
 
 export default function CheckinDashboard() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<CheckinData | null>(null);
   const [slug, setSlug] = useState('');
+  const [eventName, setEventName] = useState('');
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   const fetchStats = useCallback(async () => {
     if (!slug) return;
     const res = await fetch(`/api/checkin/${slug}/stats`);
-    if (res.ok) {
-      const d = await res.json();
-      setData(d);
-      setLastUpdate(new Date());
-    }
+    if (res.ok) { setData(await res.json()); setLastUpdate(new Date()); }
   }, [slug]);
 
-  // Load event slug first
   useEffect(() => {
     fetch(`/api/admin/events/${id}`)
       .then(r => r.json())
-      .then(e => setSlug(e.slug));
+      .then(e => { setSlug(e.slug); setEventName(e.name_en || e.name_es || ''); });
   }, [id]);
 
-  // Poll every 10s
   useEffect(() => {
     if (!slug) return;
     fetchStats();
@@ -66,21 +39,34 @@ export default function CheckinDashboard() {
     ? Math.round((data.stats.checked_in / Math.max(data.stats.total_sold, 1)) * 100)
     : 0;
 
+  const S = {
+    label: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-muted)' },
+    card: { background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '20px' },
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/events" className="text-gray-400 hover:text-gray-600">← Events</Link>
-          <h1 className="text-2xl font-bold">Live Check-in</h1>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Link href="/admin/events" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Events</Link>
+          <span style={{ color: 'var(--border-muted)' }}>/</span>
+          <h1 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '26px', fontWeight: 600, color: 'var(--text)' }}>
+            Live Check-in
+          </h1>
+          {eventName && <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>— {eventName}</span>}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
             Updated {lastUpdate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
-          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+          <span style={{ width: '7px', height: '7px', background: 'var(--green)', borderRadius: '50%', animation: 'pulse 2s infinite', display: 'inline-block' }} />
           {slug && (
-            <Link href={`/checkin/${slug}`} target="_blank"
-              className="cl-gradient text-white text-xs font-medium px-3 py-1.5 rounded-lg">
+            <Link href={`/checkin/${slug}`} target="_blank" style={{
+              background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f',
+              fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+              padding: '8px 14px', borderRadius: '8px', textDecoration: 'none',
+            }}>
               Open Scanner ↗
             </Link>
           )}
@@ -88,81 +74,92 @@ export default function CheckinDashboard() {
       </div>
 
       {!data ? (
-        <div className="text-center py-16 text-gray-400">Loading check-in data...</div>
+        <div style={{ textAlign: 'center', padding: '64px', color: 'var(--text-muted)' }}>
+          <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px' }}>Loading check-in data…</p>
+        </div>
       ) : (
         <>
           {/* Big Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-              <p className="text-3xl font-bold text-gray-900">{data.stats.total_sold}</p>
-              <p className="text-gray-500 text-sm mt-1">Tickets Sold</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ ...S.card, textAlign: 'center' }}>
+              <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '48px', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+                {data.stats.total_sold}
+              </p>
+              <p style={{ ...S.label, marginTop: '6px' }}>Tickets Sold</p>
             </div>
-            <div className="bg-white rounded-2xl border border-green-100 bg-green-50 p-5 text-center">
-              <p className="text-3xl font-bold text-green-600">{data.stats.checked_in}</p>
-              <p className="text-green-600 text-sm mt-1">Checked In</p>
+            <div style={{ ...S.card, textAlign: 'center', borderColor: 'rgba(92,184,138,0.3)', background: 'rgba(92,184,138,0.05)' }}>
+              <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '48px', fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>
+                {data.stats.checked_in}
+              </p>
+              <p style={{ ...S.label, marginTop: '6px', color: 'var(--green)' }}>Checked In</p>
             </div>
-            <div className="bg-white rounded-2xl border border-orange-100 bg-orange-50 p-5 text-center">
-              <p className="text-3xl font-bold text-orange-500">{data.stats.not_checked_in}</p>
-              <p className="text-orange-500 text-sm mt-1">Not Arrived</p>
+            <div style={{ ...S.card, textAlign: 'center', borderColor: 'rgba(232,168,74,0.3)', background: 'rgba(232,168,74,0.05)' }}>
+              <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '48px', fontWeight: 700, color: 'var(--amber)', lineHeight: 1 }}>
+                {data.stats.not_checked_in}
+              </p>
+              <p style={{ ...S.label, marginTop: '6px', color: 'var(--amber)' }}>Not Arrived</p>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Check-in progress</span>
-              <span className="font-bold">{checkinPercent}%</span>
+          <div style={{ ...S.card, marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Check-in progress</span>
+              <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700, color: 'var(--gold)' }}>{checkinPercent}%</span>
             </div>
-            <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full cl-gradient rounded-full transition-all duration-500"
-                style={{ width: `${checkinPercent}%` }}
-              />
+            <div style={{ height: '8px', background: 'var(--surface-2)', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${checkinPercent}%`,
+                background: 'linear-gradient(90deg, #c9a85c, #e8d5a0)',
+                borderRadius: '999px',
+                transition: 'width 0.5s ease',
+              }} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* By Ticket Type */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h2 className="font-semibold mb-4">By Ticket Type</h2>
-              <div className="space-y-3">
-                {data.byTicketType.map((tt, i) => (
-                  <div key={i}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>{tt.name_en || tt.name_es}</span>
-                      <span className="font-medium text-green-600">{tt.checked_in}/{tt.total}</span>
+            <div style={S.card}>
+              <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '16px' }}>By Ticket Type</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {data.byTicketType.map((tt, i) => {
+                  const pct = Math.round((Number(tt.checked_in) / Math.max(Number(tt.total), 1)) * 100);
+                  return (
+                    <div key={i}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text)' }}>{tt.name_en || tt.name_es}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--green)' }}>{tt.checked_in}/{tt.total}</span>
+                      </div>
+                      <div style={{ height: '4px', background: 'var(--surface-2)', borderRadius: '999px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: 'rgba(92,184,138,0.7)', borderRadius: '999px' }} />
+                      </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-400 rounded-full"
-                        style={{ width: `${Math.round((Number(tt.checked_in) / Math.max(Number(tt.total), 1)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {data.byTicketType.length === 0 && (
-                  <p className="text-gray-400 text-sm">No data yet</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No data yet</p>
                 )}
               </div>
             </div>
 
             {/* Recent Check-ins */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h2 className="font-semibold mb-4">Recent Check-ins</h2>
-              <div className="space-y-2">
+            <div style={S.card}>
+              <h2 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '16px' }}>Recent Check-ins</h2>
+              <div>
                 {data.recentCheckins.map((c, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-gray-50">
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-muted)' }}>
                     <div>
-                      <p className="font-medium">{c.first_name} {c.last_name}</p>
-                      <p className="text-gray-400 text-xs">{c.name_en || c.name_es}</p>
+                      <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{c.first_name} {c.last_name}</p>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.name_en || c.name_es}</p>
                     </div>
-                    <span className="text-gray-400 text-xs">
+                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums' }}>
                       {new Date(c.checked_in_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 ))}
                 {data.recentCheckins.length === 0 && (
-                  <p className="text-gray-400 text-sm">No check-ins yet</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No check-ins yet</p>
                 )}
               </div>
             </div>

@@ -15,6 +15,13 @@ interface EventRow {
   revenue: number;
 }
 
+const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
+  draft:     { bg: 'rgba(139,139,154,0.15)', color: 'var(--text-muted)' },
+  published: { bg: 'rgba(92,184,138,0.12)', color: 'var(--green)' },
+  cancelled: { bg: 'rgba(224,92,92,0.12)', color: 'var(--red)' },
+  past:      { bg: 'rgba(201,168,92,0.08)', color: 'var(--gold)' },
+};
+
 export default async function AdminEventsPage() {
   await auth();
   const events = await query<EventRow>(`
@@ -31,58 +38,97 @@ export default async function AdminEventsPage() {
     GROUP BY e.id ORDER BY e.date DESC
   `);
 
-  const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-600',
-    published: 'bg-green-100 text-green-700',
-    cancelled: 'bg-red-100 text-red-600',
-    past: 'bg-purple-100 text-purple-700',
-  };
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Events</h1>
-        <Link href="/admin/events/new" className="cl-gradient text-white font-semibold px-4 py-2 rounded-xl text-sm">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+        <h1 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '28px', fontWeight: 600, color: 'var(--text)' }}>
+          Events
+        </h1>
+        <Link href="/admin/events/new" style={{
+          background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
+          color: '#09090f', fontWeight: 700, fontSize: '13px',
+          letterSpacing: '0.06em', textTransform: 'uppercase',
+          padding: '10px 18px', borderRadius: '10px', textDecoration: 'none',
+        }}>
           + New Event
         </Link>
       </div>
 
       {events.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-          <p className="text-4xl mb-3">🎭</p>
-          <p className="font-medium">No events yet</p>
-          <Link href="/admin/events/new" className="text-pink-500 text-sm mt-2 block">Create your first event →</Link>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border-muted)',
+          borderRadius: '14px', padding: '64px 24px', textAlign: 'center',
+        }}>
+          <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '28px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+            No events yet
+          </p>
+          <Link href="/admin/events/new" style={{ color: 'var(--gold)', fontSize: '14px', textDecoration: 'none' }}>
+            Create your first event →
+          </Link>
         </div>
       ) : (
-        <div className="space-y-3">
-          {events.map(event => (
-            <div key={event.id} className="bg-white rounded-2xl border border-gray-100 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="font-semibold">{event.name_en || event.name_es}</h2>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[event.status] || 'bg-gray-100'}`}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {events.map(event => {
+            const style = STATUS_STYLES[event.status] || STATUS_STYLES.draft;
+            return (
+              <div key={event.id} style={{
+                background: 'var(--surface)', border: '1px solid var(--border-muted)',
+                borderRadius: '12px', padding: '18px 20px',
+                display: 'flex', alignItems: 'center', gap: '16px',
+              }}>
+                {/* Date */}
+                <div style={{ textAlign: 'center', minWidth: '48px' }}>
+                  <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '28px', fontWeight: 500, color: 'var(--gold)', lineHeight: 1 }}>
+                    {new Date(event.date).getDate()}
+                  </p>
+                  <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
+                    {new Date(event.date).toLocaleDateString('en-GB', { month: 'short' }).toUpperCase()}
+                  </p>
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                    <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                      {event.name_en || event.name_es}
+                    </h2>
+                    <span style={{
+                      fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em',
+                      textTransform: 'uppercase', padding: '3px 8px', borderRadius: '999px',
+                      background: style.bg, color: style.color,
+                    }}>
                       {event.status}
                     </span>
                   </div>
-                  <p className="text-gray-500 text-sm">
-                    {new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                  <div className="flex gap-4 mt-2 text-sm text-gray-500">
-                    <span>{Number(event.tickets_sold)} tickets sold</span>
-                    <span>{Number(event.orders_paid)} orders</span>
-                    <span>€{Number(event.revenue).toFixed(0)} revenue</span>
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{Number(event.tickets_sold)} / {Number(event.tickets_total)} sold</span>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{Number(event.orders_paid)} orders</span>
+                    <span style={{ fontSize: '12px', color: 'var(--gold)' }}>€{Number(event.revenue).toFixed(0)}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 ml-4 text-sm">
-                  <Link href={`/admin/events/${event.id}/edit`} className="text-blue-500 hover:underline">Edit</Link>
-                  <Link href={`/admin/events/${event.id}/tickets`} className="text-purple-500 hover:underline">Tickets</Link>
-                  <Link href={`/admin/events/${event.id}/orders`} className="text-gray-500 hover:underline">Orders</Link>
-                  <Link href={`/admin/events/${event.id}/checkin`} className="text-green-600 hover:underline">Check-in</Link>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  {[
+                    { href: `/admin/events/${event.id}/edit`, label: 'Edit', color: 'var(--text-muted)' },
+                    { href: `/admin/events/${event.id}/tickets`, label: 'Tickets', color: 'var(--gold)' },
+                    { href: `/admin/events/${event.id}/orders`, label: 'Orders', color: 'var(--text-muted)' },
+                    { href: `/admin/events/${event.id}/checkin`, label: 'Scan', color: 'var(--green)' },
+                  ].map(action => (
+                    <Link key={action.href} href={action.href} style={{
+                      fontSize: '12px', color: action.color,
+                      padding: '6px 10px', borderRadius: '7px',
+                      background: 'var(--surface-2)', textDecoration: 'none',
+                      border: '1px solid var(--border-muted)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {action.label}
+                    </Link>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

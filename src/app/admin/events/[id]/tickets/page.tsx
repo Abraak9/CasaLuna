@@ -4,53 +4,54 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
-interface PriceTier {
-  id?: string;
-  valid_until: string;
-  price: number;
-}
-
+interface PriceTier { id?: string; valid_until: string; price: number; }
 interface TicketType {
-  id: string;
-  name_es: string;
-  name_en: string;
-  description_es: string;
-  description_en: string;
-  ticket_category: string;
-  stock_total: number;
-  stock_sold: number;
-  attendees_per_ticket: number;
-  units_per_order: number;
-  price_scaling: string;
-  base_price: number;
-  visibility: string;
-  available_from: string;
-  available_until: string;
-  collect_full_name: boolean;
-  collect_email: boolean;
-  collect_phone: boolean;
-  collect_gender: boolean;
-  collect_role: boolean;
-  collect_passport: boolean;
-  collect_country: boolean;
-  collect_city: boolean;
+  id: string; name_es: string; name_en: string;
+  description_es: string; description_en: string;
+  ticket_category: string; stock_total: number; stock_sold: number;
+  attendees_per_ticket: number; units_per_order: number;
+  price_scaling: string; base_price: number; visibility: string;
+  available_from: string; available_until: string;
+  collect_full_name: boolean; collect_email: boolean; collect_phone: boolean;
+  collect_gender: boolean; collect_role: boolean; collect_passport: boolean;
+  collect_country: boolean; collect_city: boolean;
   price_tiers?: PriceTier[];
 }
 
 const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
-  name_es: '', name_en: '',
-  description_es: '', description_en: '',
-  ticket_category: 'full_pass',
-  stock_total: 100, attendees_per_ticket: 1, units_per_order: 1,
-  price_scaling: 'fixed', base_price: 0,
-  visibility: 'visible', available_from: '', available_until: '',
+  name_es: '', name_en: '', description_es: '', description_en: '',
+  ticket_category: 'full_pass', stock_total: 100, attendees_per_ticket: 1, units_per_order: 1,
+  price_scaling: 'fixed', base_price: 0, visibility: 'visible',
+  available_from: '', available_until: '',
   collect_full_name: true, collect_email: true, collect_phone: false,
   collect_gender: false, collect_role: false, collect_passport: false,
-  collect_country: false, collect_city: false,
-  price_tiers: [],
+  collect_country: false, collect_city: false, price_tiers: [],
 });
 
 type FormTicket = Omit<TicketType, 'id' | 'stock_sold'> & { price_tiers: PriceTier[] };
+
+const LABEL: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' };
+const INPUT: React.CSSProperties = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', outline: 'none' };
+const SELECT: React.CSSProperties = { ...INPUT, appearance: 'none' as const, cursor: 'pointer' };
+
+const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+  <div onClick={() => onChange(!checked)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border-muted)', cursor: 'pointer' }}>
+    <span style={{ fontSize: '13px', color: 'var(--text)' }}>{label}</span>
+    <div style={{
+      width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0,
+      background: checked ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
+      border: '1px solid', borderColor: checked ? 'transparent' : 'var(--border-muted)',
+      transition: 'background 0.2s',
+    }}>
+      <div style={{
+        position: 'absolute', top: '3px', width: '14px', height: '14px',
+        background: checked ? '#09090f' : 'var(--text-muted)',
+        borderRadius: '50%', transition: 'left 0.2s',
+        left: checked ? '23px' : '3px',
+      }} />
+    </div>
+  </div>
+);
 
 export default function TicketConfigPage() {
   const { id: eventId } = useParams<{ id: string }>();
@@ -59,73 +60,34 @@ export default function TicketConfigPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormTicket>({ ...blankTicket(), price_tiers: [] });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [activeTab, setActiveTab] = useState<'general' | 'prices' | 'fields' | 'advanced'>('general');
 
-  const load = () => {
-    fetch(`/api/admin/events/${eventId}/tickets`)
-      .then(r => r.json())
-      .then(setTickets);
-  };
-
+  const load = () => { fetch(`/api/admin/events/${eventId}/tickets`).then(r => r.json()).then(setTickets); };
   useEffect(() => { load(); }, [eventId]);
 
-  const openNew = () => {
-    setForm({ ...blankTicket(), price_tiers: [] });
-    setEditingId(null);
-    setActiveTab('general');
-    setShowForm(true);
-  };
-
+  const openNew = () => { setForm({ ...blankTicket(), price_tiers: [] }); setEditingId(null); setActiveTab('general'); setShowForm(true); };
   const openEdit = (t: TicketType) => {
-    setForm({
-      ...t,
-      price_tiers: t.price_tiers || [],
-      available_from: t.available_from ? t.available_from.slice(0, 16) : '',
-      available_until: t.available_until ? t.available_until.slice(0, 16) : '',
-    });
-    setEditingId(t.id);
-    setActiveTab('general');
-    setShowForm(true);
+    setForm({ ...t, price_tiers: t.price_tiers || [], available_from: t.available_from ? t.available_from.slice(0, 16) : '', available_until: t.available_until ? t.available_until.slice(0, 16) : '' });
+    setEditingId(t.id); setActiveTab('general'); setShowForm(true);
   };
-
   const set = <K extends keyof FormTicket>(k: K, v: FormTicket[K]) => setForm(f => ({ ...f, [k]: v }));
-
   const addTier = () => setForm(f => ({ ...f, price_tiers: [...f.price_tiers, { valid_until: '', price: 0 }] }));
   const updateTier = (i: number, field: keyof PriceTier, val: string | number) =>
     setForm(f => ({ ...f, price_tiers: f.price_tiers.map((t, ti) => ti === i ? { ...t, [field]: val } : t) }));
   const removeTier = (i: number) => setForm(f => ({ ...f, price_tiers: f.price_tiers.filter((_, ti) => ti !== i) }));
 
-  const [saveError, setSaveError] = useState('');
-
   const save = async () => {
     if (!form.name_en) { setSaveError('Ticket name is required'); return; }
-    setSaving(true);
-    setSaveError('');
-    const url = editingId
-      ? `/api/admin/tickets/${editingId}`
-      : `/api/admin/events/${eventId}/tickets`;
-    const method = editingId ? 'PUT' : 'POST';
-    const payload = {
-      ...form,
-      name_es: form.name_en,
-      description_es: form.description_en,
-      available_from: form.available_from || null,
-      available_until: form.available_until || null,
-    };
+    setSaving(true); setSaveError('');
+    const url = editingId ? `/api/admin/tickets/${editingId}` : `/api/admin/events/${eventId}/tickets`;
     const res = await fetch(url, {
-      method,
+      method: editingId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...form, name_es: form.name_en, description_es: form.description_en, available_from: form.available_from || null, available_until: form.available_until || null }),
     });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setSaveError(data.error || `Error ${res.status} — check Vercel logs`);
-      setSaving(false);
-      return;
-    }
-    load();
-    setShowForm(false);
-    setSaving(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setSaveError(d.error || `Error ${res.status}`); setSaving(false); return; }
+    load(); setShowForm(false); setSaving(false);
   };
 
   const deleteTicket = async (tid: string) => {
@@ -134,49 +96,51 @@ export default function TicketConfigPage() {
     load();
   };
 
-  const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <label className="flex items-center gap-3 cursor-pointer py-1">
-      <div onClick={() => onChange(!checked)}
-        className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'cl-gradient' : 'bg-gray-200'}`}>
-        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'left-5' : 'left-1'}`} />
-      </div>
-      <span className="text-sm text-gray-700">{label}</span>
-    </label>
-  );
-
   const tabs = ['general', 'prices', 'fields', 'advanced'] as const;
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/admin/events" className="text-gray-400 hover:text-gray-600">← Events</Link>
-        <h1 className="text-2xl font-bold">Ticket Types</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <Link href="/admin/events" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Events</Link>
+        <span style={{ color: 'var(--border-muted)' }}>/</span>
+        <h1 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '26px', fontWeight: 600, color: 'var(--text)' }}>Ticket Types</h1>
       </div>
 
       {/* Ticket List */}
       {!showForm && (
         <>
-          <div className="space-y-3 mb-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
             {tickets.map(t => (
-              <div key={t.id} className="bg-white rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">{t.name_en || t.name_es}</h3>
-                    <p className="text-sm text-gray-500">
-                      {t.stock_sold}/{t.stock_total} sold · €{Number(t.base_price).toFixed(0)}
-                      {t.price_scaling === 'by_date' ? '–' + (t.price_tiers?.at(-1)?.price ?? '?') : ''}
-                      {' '} · {t.visibility}
-                    </p>
+              <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{t.name_en || t.name_es}</h3>
+                    <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '999px', background: t.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: t.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
+                      {t.visibility}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(t)} className="text-blue-500 text-sm hover:underline">Edit</button>
-                    <button onClick={() => deleteTicket(t.id)} className="text-red-400 text-sm hover:underline">Delete</button>
-                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {t.stock_sold}/{t.stock_total} sold
+                    {' · '}
+                    <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-cormorant)', fontSize: '14px', fontWeight: 600 }}>
+                      €{Number(t.base_price).toFixed(0)}{t.price_scaling === 'by_date' && t.price_tiers?.length ? '–€' + t.price_tiers.at(-1)?.price : ''}
+                    </span>
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => openEdit(t)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer' }}>Edit</button>
+                  <button onClick={() => deleteTicket(t.id)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: 'pointer' }}>Delete</button>
                 </div>
               </div>
             ))}
+            {tickets.length === 0 && (
+              <div style={{ padding: '48px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px' }}>
+                <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', color: 'var(--text-muted)' }}>No ticket types yet</p>
+                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>Add your first ticket type below</p>
+              </div>
+            )}
           </div>
-          <button onClick={openNew} className="cl-gradient text-white font-semibold px-5 py-2.5 rounded-xl text-sm">
+          <button onClick={openNew} style={{ background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer' }}>
             + Add Ticket Type
           </button>
         </>
@@ -184,53 +148,49 @@ export default function TicketConfigPage() {
 
       {/* Ticket Form */}
       {showForm && (
-        <div className="bg-white rounded-2xl border border-gray-100 max-w-2xl">
-          {/* Tabs */}
-          <div className="flex border-b border-gray-100 px-4 pt-4">
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '16px', maxWidth: '640px' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-muted)', padding: '16px 20px 0' }}>
             {tabs.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg mr-1 capitalize transition-colors
-                  ${activeTab === tab ? 'cl-gradient text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+              <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                padding: '8px 16px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em',
+                textTransform: 'uppercase', borderRadius: '8px 8px 0 0', border: 'none',
+                background: activeTab === tab ? 'rgba(201,168,92,0.12)' : 'transparent',
+                color: activeTab === tab ? 'var(--gold)' : 'var(--text-muted)',
+                cursor: 'pointer', marginRight: '4px',
+                borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
+              }}>
                 {tab}
               </button>
             ))}
           </div>
 
-          <div className="p-5 space-y-4">
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* General Tab */}
             {activeTab === 'general' && (
               <>
                 <div>
-                  <label className="text-xs text-gray-500">Ticket Name *</label>
-                  <input value={form.name_en} onChange={e => { set('name_en', e.target.value); set('name_es', e.target.value); }}
-                    placeholder="e.g. Couple Pass"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                  <label style={LABEL}>Ticket Name *</label>
+                  <input value={form.name_en} onChange={e => { set('name_en', e.target.value); set('name_es', e.target.value); }} placeholder="e.g. Couple Pass" style={INPUT} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Description</label>
-                  <textarea value={form.description_en} onChange={e => { set('description_en', e.target.value); set('description_es', e.target.value); }} rows={2}
-                    placeholder="What's included in this ticket..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 resize-none" />
+                  <label style={LABEL}>Description</label>
+                  <textarea value={form.description_en} onChange={e => { set('description_en', e.target.value); set('description_es', e.target.value); }} rows={2} placeholder="What's included..." style={{ ...INPUT, resize: 'vertical' }} />
                 </div>
-
-                <div className="grid grid-cols-3 gap-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                   <div>
-                    <label className="text-xs text-gray-500">Total stock</label>
-                    <input type="number" value={form.stock_total} onChange={e => set('stock_total', Number(e.target.value))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                    <label style={LABEL}>Total stock</label>
+                    <input type="number" value={form.stock_total} onChange={e => set('stock_total', Number(e.target.value))} style={INPUT} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Visibility</label>
-                    <select value={form.visibility} onChange={e => set('visibility', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 bg-white">
+                    <label style={LABEL}>Visibility</label>
+                    <select value={form.visibility} onChange={e => set('visibility', e.target.value)} style={SELECT}>
                       <option value="visible">Visible</option>
                       <option value="hidden">Hidden</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Category</label>
-                    <select value={form.ticket_category} onChange={e => set('ticket_category', e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 bg-white">
+                    <label style={LABEL}>Category</label>
+                    <select value={form.ticket_category} onChange={e => set('ticket_category', e.target.value)} style={SELECT}>
                       <option value="full_pass">Full Pass</option>
                       <option value="day_pass">Day Pass</option>
                       <option value="pack">Pack</option>
@@ -246,46 +206,41 @@ export default function TicketConfigPage() {
             {activeTab === 'prices' && (
               <>
                 <div>
-                  <label className="text-xs text-gray-500">Price scaling</label>
-                  <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 bg-white">
+                  <label style={LABEL}>Price scaling</label>
+                  <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)} style={SELECT}>
                     <option value="fixed">Fixed price</option>
                     <option value="by_date">Scaled by dates</option>
                   </select>
                 </div>
-
                 {form.price_scaling === 'fixed' && (
                   <div>
-                    <label className="text-xs text-gray-500">Price (€)</label>
-                    <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                    <label style={LABEL}>Price (€)</label>
+                    <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '160px' }} />
                   </div>
                 )}
-
                 {form.price_scaling === 'by_date' && (
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500">Set price tiers by deadline. The first matching date is used.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>First matching date wins. Add early bird tiers above the final price.</p>
                     {form.price_tiers.map((tier, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <label className="text-xs text-gray-400">Until</label>
-                          <input type="date" value={tier.valid_until.slice(0, 10)} onChange={e => updateTier(i, 'valid_until', e.target.value + 'T23:59:00')}
-                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ ...LABEL, marginBottom: '4px' }}>Until</label>
+                          <input type="date" value={tier.valid_until.slice(0, 10)} onChange={e => updateTier(i, 'valid_until', e.target.value + 'T23:59:00')} style={INPUT} />
                         </div>
-                        <div className="w-24">
-                          <label className="text-xs text-gray-400">Price €</label>
-                          <input type="number" value={tier.price} onChange={e => updateTier(i, 'price', Number(e.target.value))}
-                            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                        <div style={{ width: '100px' }}>
+                          <label style={{ ...LABEL, marginBottom: '4px' }}>Price €</label>
+                          <input type="number" value={tier.price} onChange={e => updateTier(i, 'price', Number(e.target.value))} style={INPUT} />
                         </div>
-                        <button onClick={() => removeTier(i)} className="text-red-400 text-sm mt-4">✕</button>
+                        <button onClick={() => removeTier(i)} style={{ paddingBottom: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
                       </div>
                     ))}
                     <div>
-                      <label className="text-xs text-gray-400">Final price €</label>
-                      <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))}
-                        className="w-32 border border-gray-200 rounded-lg px-2 py-1.5 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                      <label style={{ ...LABEL, marginBottom: '4px' }}>Final price €</label>
+                      <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '120px' }} />
                     </div>
-                    <button onClick={addTier} className="text-pink-500 text-sm font-medium">+ Add tier</button>
+                    <button onClick={addTier} style={{ alignSelf: 'flex-start', fontSize: '12px', fontWeight: 700, color: 'var(--gold)', background: 'rgba(201,168,92,0.1)', border: '1px solid var(--border)', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+                      + Add tier
+                    </button>
                   </div>
                 )}
               </>
@@ -293,72 +248,59 @@ export default function TicketConfigPage() {
 
             {/* Fields Tab */}
             {activeTab === 'fields' && (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500 mb-3">Select data to collect from each attendee. First + last name always collected.</p>
+              <div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  First + last name always collected. Toggle extras:
+                </p>
                 {([
-                  ['collect_email', 'Email'],
-                  ['collect_phone', 'Phone'],
+                  ['collect_email', 'Email address'],
+                  ['collect_phone', 'Phone number'],
                   ['collect_gender', 'Gender'],
-                  ['collect_role', 'Dance role (leader/follower/both)'],
+                  ['collect_role', 'Dance role (leader / follower / both)'],
                   ['collect_passport', 'Document / Passport number'],
                   ['collect_country', 'Country of residence'],
                   ['collect_city', 'City'],
                 ] as const).map(([field, label]) => (
-                  <div key={field} onClick={() => set(field, !form[field])} className="cursor-pointer">
-                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                      <span className="text-sm text-gray-700">{label}</span>
-                      <div className={`w-10 h-6 rounded-full relative transition-colors ${form[field] ? 'cl-gradient' : 'bg-gray-200'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form[field] ? 'left-5' : 'left-1'}`} />
-                      </div>
-                    </div>
-                  </div>
+                  <Toggle key={field} label={label} checked={form[field]} onChange={v => set(field, v)} />
                 ))}
               </div>
             )}
 
             {/* Advanced Tab */}
             {activeTab === 'advanced' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
-                    <label className="text-xs text-gray-500">Attendees per ticket</label>
-                    <select value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Number(e.target.value))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 bg-white">
+                    <label style={LABEL}>Attendees per ticket</label>
+                    <select value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Number(e.target.value))} style={SELECT}>
                       {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
-                    <p className="text-xs text-gray-400 mt-1">Use 2 for Couple Pass etc.</p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>Use 2 for Couple Pass</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Units per order</label>
-                    <select value={form.units_per_order} onChange={e => set('units_per_order', Number(e.target.value))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400 bg-white">
+                    <label style={LABEL}>Units per order</label>
+                    <select value={form.units_per_order} onChange={e => set('units_per_order', Number(e.target.value))} style={SELECT}>
                       {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 </div>
-
                 <div>
-                  <label className="text-xs text-gray-500">Available from</label>
-                  <input type="datetime-local" value={form.available_from} onChange={e => set('available_from', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                  <label style={LABEL}>Available from</label>
+                  <input type="datetime-local" value={form.available_from} onChange={e => set('available_from', e.target.value)} style={INPUT} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Available until</label>
-                  <input type="datetime-local" value={form.available_until} onChange={e => set('available_until', e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-0.5 focus:outline-none focus:border-pink-400" />
+                  <label style={LABEL}>Available until</label>
+                  <input type="datetime-local" value={form.available_until} onChange={e => set('available_until', e.target.value)} style={INPUT} />
                 </div>
               </div>
             )}
           </div>
 
-          {/* Form Actions */}
-          {saveError && <p className="text-red-500 text-sm px-5">{saveError}</p>}
-          <div className="flex gap-3 px-5 pb-5">
-            <button onClick={() => { setShowForm(false); setSaveError(''); }} className="flex-none border border-gray-200 text-gray-600 font-medium py-2.5 px-5 rounded-xl text-sm">
-              Cancel
-            </button>
-            <button onClick={save} disabled={saving} className="flex-1 cl-gradient text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-70">
-              {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Ticket Type'}
+          {saveError && <p style={{ color: 'var(--red)', fontSize: '13px', padding: '0 20px 4px' }}>{saveError}</p>}
+          <div style={{ display: 'flex', gap: '10px', padding: '0 20px 20px' }}>
+            <button onClick={() => { setShowForm(false); setSaveError(''); }} style={{ padding: '11px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Add Ticket Type'}
             </button>
           </div>
         </div>
