@@ -20,10 +20,11 @@ interface Order {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  paid:      { bg: 'rgba(92,184,138,0.12)', color: 'var(--green)' },
-  pending:   { bg: 'rgba(232,168,74,0.12)', color: 'var(--amber)' },
-  cancelled: { bg: 'rgba(224,92,92,0.12)',  color: 'var(--red)' },
+  paid:      { bg: 'rgba(92,184,138,0.12)',  color: 'var(--green)' },
+  pending:   { bg: 'rgba(232,168,74,0.12)',  color: 'var(--amber)' },
+  cancelled: { bg: 'rgba(224,92,92,0.12)',   color: 'var(--red)' },
   refunded:  { bg: 'rgba(139,139,154,0.12)', color: 'var(--text-muted)' },
+  expired:   { bg: 'rgba(100,100,120,0.12)', color: 'var(--text-dim)' },
 };
 
 export default function SalesOrdersPage() {
@@ -33,6 +34,8 @@ export default function SalesOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<Record<string, 'sent' | 'error'>>({});
+  const [expiring, setExpiring] = useState(false);
+  const [expireMsg, setExpireMsg] = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -62,6 +65,21 @@ export default function SalesOrdersPage() {
 
   const totalRevenue = orders.reduce((s, o) => o.status === 'paid' ? s + Number(o.total_amount) : s, 0);
 
+  const handleExpire = async () => {
+    setExpiring(true); setExpireMsg('');
+    const res = await fetch('/api/cron/expire-orders');
+    const d = await res.json();
+    setExpireMsg(d.expired > 0 ? `${d.expired} order${d.expired > 1 ? 's' : ''} marked expired` : 'Nothing to expire');
+    setExpiring(false);
+    // Refresh list if we're on pending or all
+    if (filter === 'pending' || filter === 'all') {
+      const params = new URLSearchParams({ status: filter, limit: '200' });
+      if (search) params.set('search', search);
+      fetch(`/api/admin/sales?${params}`).then(r => r.json()).then(setOrders);
+    }
+    setTimeout(() => setExpireMsg(''), 4000);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
@@ -71,17 +89,25 @@ export default function SalesOrdersPage() {
             All orders across all events
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', color: 'var(--gold)' }}>
             €{totalRevenue.toLocaleString('en', { minimumFractionDigits: 0 })}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>total</span>
+          <button onClick={handleExpire} disabled={expiring} style={{
+            fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border-muted)',
+            background: 'var(--surface-2)', color: 'var(--text-muted)', cursor: expiring ? 'not-allowed' : 'pointer',
+          }}>
+            {expiring ? 'Running…' : '⏱ Expire old'}
+          </button>
+          {expireMsg && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{expireMsg}</span>}
         </div>
       </div>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        {['paid', 'all', 'pending', 'cancelled'].map(f => (
+        {['paid', 'all', 'pending', 'expired', 'cancelled'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '7px 14px', borderRadius: '999px', fontSize: '12px',
             fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
