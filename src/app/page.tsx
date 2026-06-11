@@ -37,7 +37,7 @@ function formatEventDate(dateStr: string) {
   };
 }
 
-const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · BUENOS AIRES TANGO · SALSA · BACHATA · KIZOMBA · EVENTS · TICKETS · ';
+const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · EVENTS · TICKETS · GÖTEBORG · ';
 
 export default async function HomePage() {
   const events = await getEvents();
@@ -159,7 +159,7 @@ export default async function HomePage() {
             lineHeight: 1.7,
             letterSpacing: '0.02em',
           }}>
-            Where movement becomes art. Curated dance events across Stockholm and beyond.
+            Where movement becomes art. Curated Latin dance parties in Göteborg and beyond.
           </p>
         </div>
       </section>
@@ -347,14 +347,10 @@ export default async function HomePage() {
           Casa Luna
         </span>
         <p style={{ fontSize: '12px', letterSpacing: '0.04em' }}>
-          © Casa Luna AB ·{' '}
+          © Casa Luna AB · Göteborg, Sweden ·{' '}
           <a href="mailto:info@casaluna.se" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
             info@casaluna.se
           </a>
-          {' · '}
-          <Link href="/my-tickets" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-            My Tickets
-          </Link>
         </p>
       </footer>
 
