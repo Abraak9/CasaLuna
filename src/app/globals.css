@@ -90,6 +90,11 @@ body {
   animation: fadeUp 0.6s ease forwards;
 }
 
+/* ─── Public homepage ────────────────────────────────────────────────── */
+.event-row:hover {
+  background: var(--surface) !important;
+}
+
 /* ─── Shimmer animation (loading) ────────────────────────────────────── */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }

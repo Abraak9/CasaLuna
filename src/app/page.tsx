@@ -358,11 +358,6 @@ export default async function HomePage() {
         </p>
       </footer>
 
-      <style jsx global>{`
-        .event-row:hover {
-          background: var(--surface) !important;
-        }
-      `}</style>
     </main>
   );
 }
