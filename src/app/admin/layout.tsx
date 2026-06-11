@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useState } from 'react';
+import { brand } from '@/config/brand';
 
 interface NavItem {
   href: string;
@@ -79,19 +81,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         padding: '20px 16px 16px',
         borderBottom: '1px solid var(--border-muted)',
       }}>
-        <Link href="/admin" style={{ textDecoration: 'none', display: 'block' }}>
-          <p style={{
-            fontFamily: 'var(--font-cormorant)',
-            fontSize: '20px',
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-          }} className="cl-gold-text">
-            Casa Luna
-          </p>
-          <p style={{ fontSize: '10px', letterSpacing: '0.12em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: '2px' }}>
-            Admin
-          </p>
+        <Link href="/admin" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Image
+            src={brand.logoUrl}
+            alt={brand.name}
+            width={44}
+            height={44}
+            style={{ borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }}
+            unoptimized
+          />
+          <div>
+            <p style={{
+              fontFamily: 'var(--font-cormorant)',
+              fontSize: '16px',
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+            }} className="cl-gold-text">
+              Casa Luna
+            </p>
+            <p style={{ fontSize: '9px', letterSpacing: '0.14em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: '1px' }}>
+              Admin
+            </p>
+          </div>
         </Link>
       </div>
 
