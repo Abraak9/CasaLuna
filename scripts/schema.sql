@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS orders (
   email TEXT NOT NULL,
   stripe_payment_intent_id TEXT UNIQUE,
   stripe_session_id TEXT,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending','paid','cancelled','refunded')),
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending','paid','cancelled','refunded','expired')),
   total_amount DECIMAL(10,2),
   currency TEXT DEFAULT 'EUR',
   created_at TIMESTAMPTZ DEFAULT now(),

@@ -37,7 +37,7 @@ function formatEventDate(dateStr: string) {
   };
 }
 
-const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · EVENTS · TICKETS · GÖTEBORG · ';
+const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
 
 export default async function HomePage() {
   const events = await getEvents();
