@@ -40,8 +40,18 @@ function formatEventDate(dateStr: string) {
 
 const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
 
+async function getBrandLogo(): Promise<string | null> {
+  try {
+    const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const res = await fetch(`${base}/api/settings/brand`, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.logo_url || null;
+  } catch { return null; }
+}
+
 export default async function HomePage() {
-  const events = await getEvents();
+  const [events, brandLogo] = await Promise.all([getEvents(), getBrandLogo()]);
   const upcoming = events.filter(e => e.status === 'published');
   const marqueeRepeat = MARQUEE_TEXT.repeat(4);
 
@@ -58,16 +68,14 @@ export default async function HomePage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         height: '64px',
       }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-          <Image
-            src={brand.logoUrl}
-            alt={brand.name}
-            width={40}
-            height={40}
-            style={{ borderRadius: '6px', objectFit: 'contain' }}
-            priority
-            unoptimized
-          />
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {brandLogo ? (
+            <Image src={brandLogo} alt={brand.name} width={36} height={36} style={{ borderRadius: '6px', objectFit: 'contain' }} priority unoptimized />
+          ) : (
+            <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }} className="cl-gold-text">
+              Casa Luna
+            </span>
+          )}
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <Link href="/my-tickets" style={{
@@ -119,17 +127,11 @@ export default async function HomePage() {
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* Logo */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-            <Image
-              src={brand.logoUrl}
-              alt={brand.name}
-              width={120}
-              height={120}
-              style={{ borderRadius: '16px', objectFit: 'contain' }}
-              priority
-              unoptimized
-            />
-          </div>
+          {brandLogo && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+              <Image src={brandLogo} alt={brand.name} width={120} height={120} style={{ borderRadius: '16px', objectFit: 'contain' }} priority unoptimized />
+            </div>
+          )}
 
           {/* Eyebrow */}
           <p style={{
@@ -351,14 +353,9 @@ export default async function HomePage() {
         gap: '12px',
         color: 'var(--text-dim)',
       }}>
-        <Image
-          src={brand.logoUrl}
-          alt={brand.name}
-          width={48}
-          height={48}
-          style={{ borderRadius: '8px', objectFit: 'contain', opacity: 0.85 }}
-          unoptimized
-        />
+        {brandLogo && (
+          <Image src={brandLogo} alt={brand.name} width={48} height={48} style={{ borderRadius: '8px', objectFit: 'contain', opacity: 0.85 }} unoptimized />
+        )}
         <p style={{ fontSize: '12px', letterSpacing: '0.04em' }}>
           © {brand.name} AB · {brand.location} ·{' '}
           <a href={`mailto:${brand.email}`} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>

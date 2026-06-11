@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { brand } from '@/config/brand';
 
 interface NavItem {
@@ -58,6 +58,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/admin/administration/scan-devices', label: 'Scan Devices', icon: '⬡' },
       { href: '/admin/administration/users', label: 'Users', icon: '◉' },
+      { href: '/admin/administration/brand', label: 'Brand', icon: '◈' },
     ],
   },
 ];
@@ -65,6 +66,14 @@ const NAV: NavSection[] = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/admin/settings/brand')
+      .then(r => r.json())
+      .then(d => { if (d.logo_url) setLogoUrl(d.logo_url); })
+      .catch(() => {});
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin';
@@ -82,14 +91,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         borderBottom: '1px solid var(--border-muted)',
       }}>
         <Link href="/admin" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Image
-            src={brand.logoUrl}
-            alt={brand.name}
-            width={44}
-            height={44}
-            style={{ borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }}
-            unoptimized
-          />
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              alt={brand.name}
+              width={44}
+              height={44}
+              style={{ borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }}
+              unoptimized
+            />
+          ) : (
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '8px',
+              background: 'var(--gold-subtle)', border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '16px', fontWeight: 600 }} className="cl-gold-text">CL</span>
+            </div>
+          )}
           <div>
             <p style={{
               fontFamily: 'var(--font-cormorant)',
