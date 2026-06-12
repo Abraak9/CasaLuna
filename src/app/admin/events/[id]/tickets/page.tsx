@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface PriceTier { id?: string; valid_until: string; price: number; }
 interface TicketType {
   id: string; name_es: string; name_en: string;
@@ -16,12 +18,27 @@ interface TicketType {
   collect_gender: boolean; collect_role: boolean; collect_passport: boolean;
   collect_country: boolean; collect_city: boolean;
   requires_seat_selection: boolean;
+  group_id: string | null;
   price_tiers?: PriceTier[];
 }
 
+interface Group { id: string; name: string; sort_order: number; }
+
+interface BundleItem {
+  id?: string; ticket_type_id: string; quantity: number;
+  ticket_name?: string; ticket_price?: number; ticket_currency?: string;
+}
+interface Bundle {
+  id: string; name_en: string; description_en: string | null;
+  bundle_price: number; currency: string; visibility: string;
+  items: BundleItem[];
+}
+
+// ─── Blank forms ──────────────────────────────────────────────────────────────
+
 const BUILTIN_CATS = ['full_pass', 'day_pass', 'pack', 'vip', 'other'];
 
-const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
+const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> & { price_tiers: PriceTier[] } => ({
   name_es: '', name_en: '', description_es: '', description_en: '',
   ticket_category: 'full_pass', stock_total: 100, attendees_per_ticket: 1, units_per_order: 1,
   price_scaling: 'fixed', base_price: 0, currency: 'EUR', visibility: 'visible',
@@ -29,59 +46,91 @@ const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
   collect_full_name: true, collect_email: true, collect_phone: false,
   collect_gender: false, collect_role: false, collect_passport: false,
   collect_country: false, collect_city: false,
-  requires_seat_selection: false, price_tiers: [],
+  requires_seat_selection: false, group_id: null, price_tiers: [],
 });
 
-type FormTicket = Omit<TicketType, 'id' | 'stock_sold'> & { price_tiers: PriceTier[] };
+const blankBundle = (): Omit<Bundle, 'id'> => ({
+  name_en: '', description_en: '', bundle_price: 0, currency: 'EUR', visibility: 'visible', items: [],
+});
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const LABEL: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' };
 const INPUT: React.CSSProperties = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', outline: 'none' };
 const SELECT: React.CSSProperties = { ...INPUT, appearance: 'none' as const, cursor: 'pointer' };
+const GOLD_BTN: React.CSSProperties = { background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '10px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer' };
+
+const curr = (c: string) => c === 'SEK' ? 'kr' : '€';
+const fmtPrice = (price: number, c: string) => c === 'SEK' ? `${price} kr` : `€${price}`;
 
 const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
   <div onClick={() => onChange(!checked)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border-muted)', cursor: 'pointer' }}>
     <span style={{ fontSize: '13px', color: 'var(--text)' }}>{label}</span>
-    <div style={{
-      width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0,
-      background: checked ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
-      border: '1px solid', borderColor: checked ? 'transparent' : 'var(--border-muted)',
-      transition: 'background 0.2s',
-    }}>
-      <div style={{
-        position: 'absolute', top: '3px', width: '14px', height: '14px',
-        background: checked ? '#09090f' : 'var(--text-muted)',
-        borderRadius: '50%', transition: 'left 0.2s',
-        left: checked ? '23px' : '3px',
-      }} />
+    <div style={{ width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0, background: checked ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', border: '1px solid', borderColor: checked ? 'transparent' : 'var(--border-muted)', transition: 'background 0.2s' }}>
+      <div style={{ position: 'absolute', top: '3px', width: '14px', height: '14px', background: checked ? '#09090f' : 'var(--text-muted)', borderRadius: '50%', transition: 'left 0.2s', left: checked ? '23px' : '3px' }} />
     </div>
   </div>
 );
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function TicketConfigPage() {
   const { id: eventId } = useParams<{ id: string }>();
+
+  // View
+  const [view, setView] = useState<'tickets' | 'groups' | 'bundles'>('tickets');
+
+  // Tickets
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormTicket>({ ...blankTicket(), price_tiers: [] });
+  const [form, setForm] = useState(blankTicket());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [activeTab, setActiveTab] = useState<'general' | 'prices' | 'fields' | 'advanced'>('general');
 
-  const load = () => { fetch(`/api/admin/events/${eventId}/tickets`).then(r => r.json()).then(setTickets); };
-  useEffect(() => { load(); }, [eventId]);
+  // Groups
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState('');
+  const [groupSaving, setGroupSaving] = useState(false);
 
-  const openNew = () => { setForm({ ...blankTicket(), price_tiers: [] }); setEditingId(null); setActiveTab('general'); setShowForm(true); };
-  const openEdit = (t: TicketType) => {
-    setForm({ ...t, requires_seat_selection: t.requires_seat_selection ?? false, price_tiers: t.price_tiers || [], available_from: t.available_from ? t.available_from.slice(0, 16) : '', available_until: t.available_until ? t.available_until.slice(0, 16) : '' });
-    setEditingId(t.id); setActiveTab('general'); setShowForm(true);
-  };
-  const set = <K extends keyof FormTicket>(k: K, v: FormTicket[K]) => setForm(f => ({ ...f, [k]: v }));
+  // Bundles
+  const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [showBundleForm, setShowBundleForm] = useState(false);
+  const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
+  const [bundleForm, setBundleForm] = useState<Omit<Bundle, 'id'>>(blankBundle());
+  const [bundleSaving, setBundleSaving] = useState(false);
+  const [bundleError, setBundleError] = useState('');
+
+  // ─── Load ──────────────────────────────────────────────────────────────────
+
+  const loadTickets = () => fetch(`/api/admin/events/${eventId}/tickets`).then(r => r.json()).then(setTickets);
+  const loadGroups = () => fetch(`/api/admin/events/${eventId}/groups`).then(r => r.json()).then(setGroups);
+  const loadBundles = () => fetch(`/api/admin/events/${eventId}/bundles`).then(r => r.json()).then(setBundles);
+
+  useEffect(() => {
+    loadTickets();
+    loadGroups();
+    loadBundles();
+  }, [eventId]);
+
+  // ─── Ticket handlers ───────────────────────────────────────────────────────
+
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }));
   const addTier = () => setForm(f => ({ ...f, price_tiers: [...f.price_tiers, { valid_until: '', price: 0 }] }));
   const updateTier = (i: number, field: keyof PriceTier, val: string | number) =>
     setForm(f => ({ ...f, price_tiers: f.price_tiers.map((t, ti) => ti === i ? { ...t, [field]: val } : t) }));
   const removeTier = (i: number) => setForm(f => ({ ...f, price_tiers: f.price_tiers.filter((_, ti) => ti !== i) }));
 
-  const save = async () => {
+  const openNew = () => { setForm(blankTicket()); setEditingId(null); setActiveTab('general'); setShowForm(true); setSaveError(''); };
+  const openEdit = (t: TicketType) => {
+    setForm({ ...t, requires_seat_selection: t.requires_seat_selection ?? false, price_tiers: t.price_tiers || [], available_from: t.available_from ? t.available_from.slice(0, 16) : '', available_until: t.available_until ? t.available_until.slice(0, 16) : '', group_id: t.group_id || null });
+    setEditingId(t.id); setActiveTab('general'); setShowForm(true); setSaveError('');
+  };
+
+  const saveTicket = async () => {
     if (!form.name_en) { setSaveError('Ticket name is required'); return; }
     setSaving(true); setSaveError('');
     const url = editingId ? `/api/admin/tickets/${editingId}` : `/api/admin/events/${eventId}/tickets`;
@@ -91,24 +140,102 @@ export default function TicketConfigPage() {
       body: JSON.stringify({ ...form, name_es: form.name_en, description_es: form.description_en, available_from: form.available_from || null, available_until: form.available_until || null }),
     });
     if (!res.ok) { const d = await res.json().catch(() => ({})); setSaveError(d.error || `Error ${res.status}`); setSaving(false); return; }
-    load(); setShowForm(false); setSaving(false);
+    loadTickets(); setShowForm(false); setSaving(false);
   };
 
   const deleteTicket = async (tid: string) => {
     if (!confirm('Delete this ticket type?')) return;
     await fetch(`/api/admin/tickets/${tid}`, { method: 'DELETE' });
-    load();
+    loadTickets();
   };
 
-  // Derive custom categories already in use across this event's tickets
   const customCats = [...new Set(tickets.map(t => t.ticket_category).filter(c => !BUILTIN_CATS.includes(c)))];
   const allCatValues = [...BUILTIN_CATS, ...customCats];
   const isCustomCat = !allCatValues.includes(form.ticket_category);
-
   const tabs = ['general', 'prices', 'fields', 'advanced'] as const;
+
+  // ─── Group handlers ────────────────────────────────────────────────────────
+
+  const openNewGroup = () => { setGroupName(''); setEditingGroupId(null); setShowGroupForm(true); };
+  const openEditGroup = (g: Group) => { setGroupName(g.name); setEditingGroupId(g.id); setShowGroupForm(true); };
+
+  const saveGroup = async () => {
+    if (!groupName.trim()) return;
+    setGroupSaving(true);
+    const url = editingGroupId ? `/api/admin/groups/${editingGroupId}` : `/api/admin/events/${eventId}/groups`;
+    await fetch(url, { method: editingGroupId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupName }) });
+    loadGroups(); setShowGroupForm(false); setGroupSaving(false);
+  };
+
+  const deleteGroup = async (id: string) => {
+    if (!confirm('Delete this group? Tickets in it will become ungrouped.')) return;
+    await fetch(`/api/admin/groups/${id}`, { method: 'DELETE' });
+    loadGroups(); loadTickets();
+  };
+
+  // ─── Bundle handlers ───────────────────────────────────────────────────────
+
+  const bSet = <K extends keyof Omit<Bundle, 'id'>>(k: K, v: Omit<Bundle, 'id'>[K]) =>
+    setBundleForm(f => ({ ...f, [k]: v }));
+
+  const addBundleItem = () =>
+    setBundleForm(f => ({ ...f, items: [...f.items, { ticket_type_id: tickets[0]?.id || '', quantity: 1 }] }));
+
+  const updateBundleItem = (i: number, field: keyof BundleItem, val: string | number) =>
+    setBundleForm(f => ({ ...f, items: f.items.map((it, idx) => idx === i ? { ...it, [field]: val } : it) }));
+
+  const removeBundleItem = (i: number) =>
+    setBundleForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+
+  const openNewBundle = () => { setBundleForm(blankBundle()); setEditingBundleId(null); setShowBundleForm(true); setBundleError(''); };
+  const openEditBundle = (b: Bundle) => {
+    setBundleForm({ name_en: b.name_en, description_en: b.description_en || '', bundle_price: b.bundle_price, currency: b.currency, visibility: b.visibility, items: b.items.map(i => ({ ticket_type_id: i.ticket_type_id, quantity: i.quantity })) });
+    setEditingBundleId(b.id); setShowBundleForm(true); setBundleError('');
+  };
+
+  const saveBundle = async () => {
+    if (!bundleForm.name_en.trim()) { setBundleError('Bundle name required'); return; }
+    if (!bundleForm.items.length) { setBundleError('Add at least one ticket type to the bundle'); return; }
+    setBundleSaving(true); setBundleError('');
+    const url = editingBundleId ? `/api/admin/bundles/${editingBundleId}` : `/api/admin/events/${eventId}/bundles`;
+    const res = await fetch(url, { method: editingBundleId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bundleForm) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); setBundleError(d.error || 'Save failed'); setBundleSaving(false); return; }
+    loadBundles(); setShowBundleForm(false); setBundleSaving(false);
+  };
+
+  const deleteBundle = async (id: string) => {
+    if (!confirm('Delete this bundle?')) return;
+    await fetch(`/api/admin/bundles/${id}`, { method: 'DELETE' });
+    loadBundles();
+  };
+
+  // ─── Computed: retail price for bundle savings display ─────────────────────
+  const bundleRetailPrice = (b: Bundle) =>
+    b.items.reduce((sum, item) => sum + (item.ticket_price || 0) * item.quantity, 0);
+
+  const formRetailPrice = () =>
+    bundleForm.items.reduce((sum, item) => {
+      const t = tickets.find(tt => tt.id === item.ticket_type_id);
+      return sum + (t ? t.base_price * item.quantity : 0);
+    }, 0);
+
+  // ─── Grouped tickets for display ──────────────────────────────────────────
+  const groupedTickets = () => {
+    const result: { group: Group | null; tickets: TicketType[] }[] = [];
+    for (const g of groups) {
+      const gt = tickets.filter(t => t.group_id === g.id);
+      if (gt.length || groups.length > 0) result.push({ group: g, tickets: gt });
+    }
+    const ungrouped = tickets.filter(t => !t.group_id);
+    if (ungrouped.length) result.push({ group: null, tickets: ungrouped });
+    return result;
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div>
+      {/* Page Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <Link href="/admin/events" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Events</Link>
         <span style={{ color: 'var(--border-muted)' }}>/</span>
@@ -118,243 +245,469 @@ export default function TicketConfigPage() {
         </Link>
       </div>
 
-      {/* Ticket List */}
-      {!showForm && (
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-            {tickets.map(t => (
-              <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                    <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{t.name_en || t.name_es}</h3>
-                    <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '999px', background: t.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: t.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
-                      {t.visibility}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {t.stock_sold}/{t.stock_total} sold
-                    {' · '}
-                    <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-cormorant)', fontSize: '14px', fontWeight: 600 }}>
-                      {t.currency === 'SEK' ? '' : '€'}{Number(t.base_price).toFixed(0)}{t.currency === 'SEK' ? ' kr' : ''}{t.price_scaling === 'by_date' && t.price_tiers?.length ? `–${t.currency === 'SEK' ? '' : '€'}${t.price_tiers.at(-1)?.price}${t.currency === 'SEK' ? ' kr' : ''}` : ''}
-                    </span>
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => openEdit(t)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => deleteTicket(t.id)} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: 'pointer' }}>Delete</button>
-                </div>
-              </div>
-            ))}
-            {tickets.length === 0 && (
-              <div style={{ padding: '48px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px' }}>
-                <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', color: 'var(--text-muted)' }}>No ticket types yet</p>
-                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>Add your first ticket type below</p>
-              </div>
-            )}
-          </div>
-          <button onClick={openNew} style={{ background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer' }}>
-            + Add Ticket Type
+      {/* View tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
+        {([['tickets', '🎟 Tickets'], ['groups', '📁 Groups'], ['bundles', '📦 Bundles']] as const).map(([v, label]) => (
+          <button key={v} onClick={() => { setView(v); setShowForm(false); setShowGroupForm(false); setShowBundleForm(false); }} style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: view === v ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'transparent', color: view === v ? '#09090f' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+            {label} {v === 'tickets' ? `(${tickets.length})` : v === 'groups' ? `(${groups.length})` : `(${bundles.length})`}
           </button>
+        ))}
+      </div>
+
+      {/* ─── TICKETS VIEW ─── */}
+      {view === 'tickets' && (
+        <>
+          {!showForm && (
+            <>
+              {/* Grouped ticket list */}
+              {groupedTickets().map(({ group, tickets: gt }, gi) => (
+                <div key={gi} style={{ marginBottom: '16px' }}>
+                  {/* Folder header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>📁</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: group ? 'var(--gold)' : 'var(--text-dim)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                      {group ? group.name : 'Ungrouped'}
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--border-muted)' }} />
+                  </div>
+                  {gt.length === 0 && (
+                    <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px dashed var(--border-muted)', borderRadius: '10px', fontSize: '12px', color: 'var(--text-dim)' }}>
+                      No tickets in this group yet
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {gt.map(t => (
+                      <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t.name_en || t.name_es}</h3>
+                            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: '999px', background: t.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: t.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
+                              {t.visibility}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            {t.stock_sold}/{t.stock_total} sold
+                            {' · '}
+                            <span style={{ color: 'var(--gold)', fontWeight: 600 }}>
+                              {fmtPrice(Number(t.base_price), t.currency || 'EUR')}{t.price_scaling === 'by_date' && t.price_tiers?.length ? `–${fmtPrice(t.price_tiers.at(-1)?.price || 0, t.currency || 'EUR')}` : ''}
+                            </span>
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => openEdit(t)} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => deleteTicket(t.id)} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: 'pointer' }}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {tickets.length === 0 && (
+                <div style={{ padding: '48px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', marginBottom: '16px' }}>
+                  <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', color: 'var(--text-muted)' }}>No ticket types yet</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '4px' }}>Add your first ticket type below</p>
+                </div>
+              )}
+              <button onClick={openNew} style={GOLD_BTN}>+ Add Ticket Type</button>
+            </>
+          )}
+
+          {/* Ticket Form */}
+          {showForm && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '16px', maxWidth: '640px' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-muted)', padding: '16px 20px 0' }}>
+                {tabs.map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', borderRadius: '8px 8px 0 0', border: 'none', background: activeTab === tab ? 'rgba(201,168,92,0.12)' : 'transparent', color: activeTab === tab ? 'var(--gold)' : 'var(--text-muted)', cursor: 'pointer', marginRight: '4px', borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent' }}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                {/* ── General Tab ── */}
+                {activeTab === 'general' && (
+                  <>
+                    <div>
+                      <label style={LABEL}>Ticket Name *</label>
+                      <input value={form.name_en} onChange={e => { set('name_en', e.target.value); set('name_es', e.target.value); }} placeholder="e.g. Couple Pass" style={INPUT} />
+                    </div>
+                    <div>
+                      <label style={LABEL}>Description</label>
+                      <textarea value={form.description_en} onChange={e => { set('description_en', e.target.value); set('description_es', e.target.value); }} rows={2} placeholder="What's included..." style={{ ...INPUT, resize: 'vertical' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={LABEL}>Total stock</label>
+                        <input type="number" value={form.stock_total} onChange={e => set('stock_total', Number(e.target.value))} style={INPUT} />
+                      </div>
+                      <div>
+                        <label style={LABEL}>Visibility</label>
+                        <select value={form.visibility} onChange={e => set('visibility', e.target.value)} style={SELECT}>
+                          <option value="visible">Visible</option>
+                          <option value="hidden">Hidden</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={LABEL}>Category</label>
+                        <select value={isCustomCat ? '__custom__' : form.ticket_category} onChange={e => set('ticket_category', e.target.value === '__custom__' ? '' : e.target.value)} style={SELECT}>
+                          <option value="full_pass">Full Pass</option>
+                          <option value="day_pass">Day Pass</option>
+                          <option value="pack">Pack</option>
+                          <option value="vip">VIP</option>
+                          <option value="other">Other</option>
+                          {customCats.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="__custom__">＋ Add custom…</option>
+                        </select>
+                        {isCustomCat && (
+                          <input value={form.ticket_category} onChange={e => set('ticket_category', e.target.value)} placeholder="e.g. Weekend Pass" style={{ ...INPUT, marginTop: '8px' }} autoFocus />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Group assignment */}
+                    {groups.length > 0 && (
+                      <div>
+                        <label style={LABEL}>Group / Folder</label>
+                        <select value={form.group_id || ''} onChange={e => set('group_id', e.target.value || null)} style={SELECT}>
+                          <option value="">— No group —</option>
+                          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Seat selection toggle */}
+                    <div onClick={() => set('requires_seat_selection', !form.requires_seat_selection)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', background: form.requires_seat_selection ? 'rgba(201,168,92,0.06)' : 'var(--surface-2)', border: `1px solid ${form.requires_seat_selection ? 'rgba(201,168,92,0.25)' : 'var(--border-muted)'}`, cursor: 'pointer' }}>
+                      <div>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>Require seat / spot selection</p>
+                        <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Buyers must pick a spot from the venue map at checkout</p>
+                      </div>
+                      <div style={{ width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0, background: form.requires_seat_selection ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', border: '1px solid', borderColor: form.requires_seat_selection ? 'transparent' : 'var(--border-muted)' }}>
+                        <div style={{ position: 'absolute', top: '3px', width: '14px', height: '14px', background: form.requires_seat_selection ? '#09090f' : 'var(--text-muted)', borderRadius: '50%', left: form.requires_seat_selection ? '23px' : '3px' }} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Prices Tab ── */}
+                {activeTab === 'prices' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={LABEL}>Currency</label>
+                        <select value={form.currency} onChange={e => set('currency', e.target.value)} style={SELECT}>
+                          <option value="EUR">EUR (€)</option>
+                          <option value="SEK">SEK (kr)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={LABEL}>Price scaling</label>
+                        <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)} style={SELECT}>
+                          <option value="fixed">Fixed price</option>
+                          <option value="by_date">Scaled by dates</option>
+                        </select>
+                      </div>
+                    </div>
+                    {form.price_scaling === 'fixed' && (
+                      <div>
+                        <label style={LABEL}>Price ({curr(form.currency)})</label>
+                        <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '160px' }} />
+                      </div>
+                    )}
+                    {form.price_scaling === 'by_date' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>First matching date wins. Add early bird tiers above the final price.</p>
+                        {form.price_tiers.map((tier, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ ...LABEL, marginBottom: '4px' }}>Until</label>
+                              <input type="date" value={tier.valid_until.slice(0, 10)} onChange={e => updateTier(i, 'valid_until', e.target.value + 'T23:59:00')} style={INPUT} />
+                            </div>
+                            <div style={{ width: '100px' }}>
+                              <label style={{ ...LABEL, marginBottom: '4px' }}>Price {curr(form.currency)}</label>
+                              <input type="number" value={tier.price} onChange={e => updateTier(i, 'price', Number(e.target.value))} style={INPUT} />
+                            </div>
+                            <button onClick={() => removeTier(i)} style={{ paddingBottom: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                          </div>
+                        ))}
+                        <div>
+                          <label style={{ ...LABEL, marginBottom: '4px' }}>Final price {curr(form.currency)}</label>
+                          <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '120px' }} />
+                        </div>
+                        <button onClick={addTier} style={{ alignSelf: 'flex-start', fontSize: '12px', fontWeight: 700, color: 'var(--gold)', background: 'rgba(201,168,92,0.1)', border: '1px solid var(--border)', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+                          + Add tier
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── Fields Tab ── */}
+                {activeTab === 'fields' && (
+                  <div>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>First + last name always collected. Toggle extras:</p>
+                    {([['collect_email', 'Email address'], ['collect_phone', 'Phone number'], ['collect_gender', 'Gender'], ['collect_role', 'Dance role (leader / follower / both)'], ['collect_passport', 'Document / Passport number'], ['collect_country', 'Country of residence'], ['collect_city', 'City']] as const).map(([field, label]) => (
+                      <Toggle key={field} label={label} checked={form[field]} onChange={v => set(field, v)} />
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Advanced Tab ── */}
+                {activeTab === 'advanced' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={LABEL}>Attendees per ticket</label>
+                        <select value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Number(e.target.value))} style={SELECT}>
+                          {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>Use 2 for Couple Pass</p>
+                      </div>
+                      <div>
+                        <label style={LABEL}>Units per order</label>
+                        <select value={form.units_per_order} onChange={e => set('units_per_order', Number(e.target.value))} style={SELECT}>
+                          {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={LABEL}>Available from</label>
+                      <input type="datetime-local" value={form.available_from} onChange={e => set('available_from', e.target.value)} style={INPUT} />
+                    </div>
+                    <div>
+                      <label style={LABEL}>Available until</label>
+                      <input type="datetime-local" value={form.available_until} onChange={e => set('available_until', e.target.value)} style={INPUT} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {saveError && <p style={{ color: 'var(--red)', fontSize: '13px', padding: '0 20px 4px' }}>{saveError}</p>}
+              <div style={{ display: 'flex', gap: '10px', padding: '0 20px 20px' }}>
+                <button onClick={() => { setShowForm(false); setSaveError(''); }} style={{ padding: '11px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+                <button onClick={saveTicket} disabled={saving} style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Add Ticket Type'}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Ticket Form */}
-      {showForm && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '16px', maxWidth: '640px' }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-muted)', padding: '16px 20px 0' }}>
-            {tabs.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                padding: '8px 16px', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em',
-                textTransform: 'uppercase', borderRadius: '8px 8px 0 0', border: 'none',
-                background: activeTab === tab ? 'rgba(201,168,92,0.12)' : 'transparent',
-                color: activeTab === tab ? 'var(--gold)' : 'var(--text-muted)',
-                cursor: 'pointer', marginRight: '4px',
-                borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
-              }}>
-                {tab}
-              </button>
-            ))}
+      {/* ─── GROUPS VIEW ─── */}
+      {view === 'groups' && (
+        <div style={{ maxWidth: '480px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Folders help you organise ticket types on the event page</p>
+            {!showGroupForm && <button onClick={openNewGroup} style={GOLD_BTN}>+ New Group</button>}
           </div>
 
-          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* General Tab */}
-            {activeTab === 'general' && (
-              <>
+          {showGroupForm && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '18px', marginBottom: '16px' }}>
+              <label style={LABEL}>Group name</label>
+              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="e.g. Bachata, Accommodation, VIP" style={{ ...INPUT, marginBottom: '14px' }} autoFocus onKeyDown={e => { if (e.key === 'Enter') saveGroup(); if (e.key === 'Escape') setShowGroupForm(false); }} />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setShowGroupForm(false)} style={{ padding: '9px 16px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+                <button onClick={saveGroup} disabled={groupSaving || !groupName.trim()} style={{ flex: 1, padding: '9px', borderRadius: '8px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: 'pointer' }}>
+                  {groupSaving ? 'Saving…' : editingGroupId ? 'Save' : 'Create Group'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {groups.length === 0 && !showGroupForm && (
+              <div style={{ padding: '40px', textAlign: 'center', background: 'var(--surface)', border: '1px dashed var(--border-muted)', borderRadius: '14px' }}>
+                <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', color: 'var(--text-muted)', marginBottom: '6px' }}>No groups yet</p>
+                <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Create a group to organise your tickets into folders</p>
+              </div>
+            )}
+            {groups.map(g => {
+              const count = tickets.filter(t => t.group_id === g.id).length;
+              return (
+                <div key={g.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '11px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '20px' }}>📁</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{g.name}</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{count} ticket type{count !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => openEditGroup(g)} style={{ fontSize: '12px', color: 'var(--gold)', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', padding: '5px 11px', borderRadius: '7px', cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => deleteGroup(g.id)} style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', padding: '5px 11px', borderRadius: '7px', cursor: 'pointer' }}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── BUNDLES VIEW ─── */}
+      {view === 'bundles' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Bundle multiple ticket types at a special combined price</p>
+            {!showBundleForm && <button onClick={openNewBundle} style={GOLD_BTN}>+ New Bundle</button>}
+          </div>
+
+          {showBundleForm && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px', marginBottom: '20px', maxWidth: '580px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '18px' }}>
+                {editingBundleId ? 'Edit Bundle' : 'New Bundle'}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={LABEL}>Ticket Name *</label>
-                  <input value={form.name_en} onChange={e => { set('name_en', e.target.value); set('name_es', e.target.value); }} placeholder="e.g. Couple Pass" style={INPUT} />
+                  <label style={LABEL}>Bundle name *</label>
+                  <input value={bundleForm.name_en} onChange={e => bSet('name_en', e.target.value)} placeholder="e.g. Couple Full Pass, Friends Pack" style={INPUT} />
                 </div>
                 <div>
                   <label style={LABEL}>Description</label>
-                  <textarea value={form.description_en} onChange={e => { set('description_en', e.target.value); set('description_es', e.target.value); }} rows={2} placeholder="What's included..." style={{ ...INPUT, resize: 'vertical' }} />
+                  <textarea value={bundleForm.description_en || ''} onChange={e => bSet('description_en', e.target.value)} rows={2} placeholder="What's included in this bundle..." style={{ ...INPUT, resize: 'vertical' }} />
                 </div>
+
+                {/* Bundle items */}
+                <div>
+                  <label style={{ ...LABEL, marginBottom: '10px' }}>Ticket types in this bundle *</label>
+                  {bundleForm.items.length === 0 && (
+                    <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px' }}>Add at least one ticket type</p>
+                  )}
+                  {bundleForm.items.map((item, i) => {
+                    const t = tickets.find(tt => tt.id === item.ticket_type_id);
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', marginBottom: '10px' }}>
+                        <div style={{ flex: 1 }}>
+                          {i === 0 && <label style={{ ...LABEL, marginBottom: '4px' }}>Ticket type</label>}
+                          <select value={item.ticket_type_id} onChange={e => updateBundleItem(i, 'ticket_type_id', e.target.value)} style={SELECT}>
+                            {tickets.map(tt => <option key={tt.id} value={tt.id}>{tt.name_en} ({fmtPrice(tt.base_price, tt.currency)})</option>)}
+                          </select>
+                        </div>
+                        <div style={{ width: '80px' }}>
+                          {i === 0 && <label style={{ ...LABEL, marginBottom: '4px' }}>Qty</label>}
+                          <select value={item.quantity} onChange={e => updateBundleItem(i, 'quantity', Number(e.target.value))} style={SELECT}>
+                            {[1,2,3,4,5,6,8,10].map(n => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                        {t && (
+                          <div style={{ textAlign: 'right', paddingBottom: '2px', minWidth: '70px' }}>
+                            <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Retail</p>
+                            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>{fmtPrice(t.base_price * item.quantity, t.currency)}</p>
+                          </div>
+                        )}
+                        <button onClick={() => removeBundleItem(i)} style={{ paddingBottom: '8px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                      </div>
+                    );
+                  })}
+                  <button onClick={addBundleItem} disabled={tickets.length === 0} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gold)', background: 'rgba(201,168,92,0.1)', border: '1px solid rgba(201,168,92,0.25)', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+                    + Add ticket type
+                  </button>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                   <div>
-                    <label style={LABEL}>Total stock</label>
-                    <input type="number" value={form.stock_total} onChange={e => set('stock_total', Number(e.target.value))} style={INPUT} />
-                  </div>
-                  <div>
-                    <label style={LABEL}>Visibility</label>
-                    <select value={form.visibility} onChange={e => set('visibility', e.target.value)} style={SELECT}>
-                      <option value="visible">Visible</option>
-                      <option value="hidden">Hidden</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={LABEL}>Category</label>
-                    <select
-                      value={isCustomCat ? '__custom__' : form.ticket_category}
-                      onChange={e => set('ticket_category', e.target.value === '__custom__' ? '' : e.target.value)}
-                      style={SELECT}
-                    >
-                      <option value="full_pass">Full Pass</option>
-                      <option value="day_pass">Day Pass</option>
-                      <option value="pack">Pack</option>
-                      <option value="vip">VIP</option>
-                      <option value="other">Other</option>
-                      {customCats.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                      <option value="__custom__">＋ Add custom…</option>
-                    </select>
-                    {isCustomCat && (
-                      <input
-                        value={form.ticket_category}
-                        onChange={e => set('ticket_category', e.target.value)}
-                        placeholder="e.g. Weekend Pass, Early Bird…"
-                        style={{ ...INPUT, marginTop: '8px' }}
-                        autoFocus
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Seat selection toggle */}
-                <div
-                  onClick={() => set('requires_seat_selection', !form.requires_seat_selection)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', background: form.requires_seat_selection ? 'rgba(201,168,92,0.06)' : 'var(--surface-2)', border: `1px solid ${form.requires_seat_selection ? 'rgba(201,168,92,0.25)' : 'var(--border-muted)'}`, cursor: 'pointer', transition: 'all 0.15s' }}
-                >
-                  <div>
-                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>Require seat / spot selection</p>
-                    <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Buyers must pick a spot from the venue map at checkout</p>
-                  </div>
-                  <div style={{ width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0, background: form.requires_seat_selection ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', border: '1px solid', borderColor: form.requires_seat_selection ? 'transparent' : 'var(--border-muted)', transition: 'background 0.2s' }}>
-                    <div style={{ position: 'absolute', top: '3px', width: '14px', height: '14px', background: form.requires_seat_selection ? '#09090f' : 'var(--text-muted)', borderRadius: '50%', transition: 'left 0.2s', left: form.requires_seat_selection ? '23px' : '3px' }} />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Prices Tab */}
-            {activeTab === 'prices' && (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
                     <label style={LABEL}>Currency</label>
-                    <select value={form.currency} onChange={e => set('currency', e.target.value)} style={SELECT}>
+                    <select value={bundleForm.currency} onChange={e => bSet('currency', e.target.value)} style={SELECT}>
                       <option value="EUR">EUR (€)</option>
                       <option value="SEK">SEK (kr)</option>
                     </select>
                   </div>
                   <div>
-                    <label style={LABEL}>Price scaling</label>
-                    <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)} style={SELECT}>
-                      <option value="fixed">Fixed price</option>
-                      <option value="by_date">Scaled by dates</option>
+                    <label style={LABEL}>Bundle price *</label>
+                    <input type="number" value={bundleForm.bundle_price} onChange={e => bSet('bundle_price', Number(e.target.value))} style={INPUT} />
+                  </div>
+                  <div>
+                    <label style={LABEL}>Visibility</label>
+                    <select value={bundleForm.visibility} onChange={e => bSet('visibility', e.target.value)} style={SELECT}>
+                      <option value="visible">Visible</option>
+                      <option value="hidden">Hidden</option>
                     </select>
                   </div>
                 </div>
-                {form.price_scaling === 'fixed' && (
-                  <div>
-                    <label style={LABEL}>Price ({form.currency === 'SEK' ? 'kr' : '€'})</label>
-                    <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '160px' }} />
-                  </div>
-                )}
-                {form.price_scaling === 'by_date' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>First matching date wins. Add early bird tiers above the final price.</p>
-                    {form.price_tiers.map((tier, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ ...LABEL, marginBottom: '4px' }}>Until</label>
-                          <input type="date" value={tier.valid_until.slice(0, 10)} onChange={e => updateTier(i, 'valid_until', e.target.value + 'T23:59:00')} style={INPUT} />
-                        </div>
-                        <div style={{ width: '100px' }}>
-                          <label style={{ ...LABEL, marginBottom: '4px' }}>Price {form.currency === 'SEK' ? 'kr' : '€'}</label>
-                          <input type="number" value={tier.price} onChange={e => updateTier(i, 'price', Number(e.target.value))} style={INPUT} />
-                        </div>
-                        <button onClick={() => removeTier(i)} style={{ paddingBottom: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
-                      </div>
-                    ))}
-                    <div>
-                      <label style={{ ...LABEL, marginBottom: '4px' }}>Final price {form.currency === 'SEK' ? 'kr' : '€'}</label>
-                      <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '120px' }} />
+
+                {/* Savings preview */}
+                {bundleForm.items.length > 0 && formRetailPrice() > 0 && (
+                  <div style={{ background: formRetailPrice() > bundleForm.bundle_price ? 'rgba(92,184,138,0.08)' : 'rgba(139,139,154,0.08)', border: `1px solid ${formRetailPrice() > bundleForm.bundle_price ? 'rgba(92,184,138,0.2)' : 'var(--border-muted)'}`, borderRadius: '10px', padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Retail total:</span>
+                      <span style={{ fontSize: '13px', color: 'var(--text)', textDecoration: 'line-through' }}>{fmtPrice(formRetailPrice(), bundleForm.currency)}</span>
                     </div>
-                    <button onClick={addTier} style={{ alignSelf: 'flex-start', fontSize: '12px', fontWeight: 700, color: 'var(--gold)', background: 'rgba(201,168,92,0.1)', border: '1px solid var(--border)', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
-                      + Add tier
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Bundle price:</span>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)' }}>{fmtPrice(bundleForm.bundle_price, bundleForm.currency)}</span>
+                    </div>
+                    {formRetailPrice() > bundleForm.bundle_price && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Customer saves:</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--green)' }}>
+                          {fmtPrice(formRetailPrice() - bundleForm.bundle_price, bundleForm.currency)} ({Math.round((1 - bundleForm.bundle_price / formRetailPrice()) * 100)}% off)
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </>
-            )}
 
-            {/* Fields Tab */}
-            {activeTab === 'fields' && (
-              <div>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  First + last name always collected. Toggle extras:
-                </p>
-                {([
-                  ['collect_email', 'Email address'],
-                  ['collect_phone', 'Phone number'],
-                  ['collect_gender', 'Gender'],
-                  ['collect_role', 'Dance role (leader / follower / both)'],
-                  ['collect_passport', 'Document / Passport number'],
-                  ['collect_country', 'Country of residence'],
-                  ['collect_city', 'City'],
-                ] as const).map(([field, label]) => (
-                  <Toggle key={field} label={label} checked={form[field]} onChange={v => set(field, v)} />
-                ))}
-              </div>
-            )}
-
-            {/* Advanced Tab */}
-            {activeTab === 'advanced' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={LABEL}>Attendees per ticket</label>
-                    <select value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Number(e.target.value))} style={SELECT}>
-                      {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>Use 2 for Couple Pass</p>
-                  </div>
-                  <div>
-                    <label style={LABEL}>Units per order</label>
-                    <select value={form.units_per_order} onChange={e => set('units_per_order', Number(e.target.value))} style={SELECT}>
-                      {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label style={LABEL}>Available from</label>
-                  <input type="datetime-local" value={form.available_from} onChange={e => set('available_from', e.target.value)} style={INPUT} />
-                </div>
-                <div>
-                  <label style={LABEL}>Available until</label>
-                  <input type="datetime-local" value={form.available_until} onChange={e => set('available_until', e.target.value)} style={INPUT} />
+                {bundleError && <p style={{ color: 'var(--red)', fontSize: '13px' }}>{bundleError}</p>}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => { setShowBundleForm(false); setBundleError(''); }} style={{ padding: '10px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+                  <button onClick={saveBundle} disabled={bundleSaving} style={{ flex: 1, padding: '10px', borderRadius: '9px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: 'pointer' }}>
+                    {bundleSaving ? 'Saving…' : editingBundleId ? 'Save Bundle' : 'Create Bundle'}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {saveError && <p style={{ color: 'var(--red)', fontSize: '13px', padding: '0 20px 4px' }}>{saveError}</p>}
-          <div style={{ display: 'flex', gap: '10px', padding: '0 20px 20px' }}>
-            <button onClick={() => { setShowForm(false); setSaveError(''); }} style={{ padding: '11px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
-            <button onClick={save} disabled={saving} style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Add Ticket Type'}
-            </button>
-          </div>
+          {/* Bundles list */}
+          {bundles.length === 0 && !showBundleForm ? (
+            <div style={{ padding: '48px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px' }}>
+              <p style={{ fontFamily: 'var(--font-cormorant)', fontSize: '22px', color: 'var(--text-muted)', marginBottom: '6px' }}>No bundles yet</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Create a bundle to offer multiple tickets at a special combined price</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {bundles.map(b => {
+                const retail = bundleRetailPrice(b);
+                const savings = retail - b.bundle_price;
+                return (
+                  <div key={b.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '13px', padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '16px' }}>📦</span>
+                          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>{b.name_en}</h3>
+                          <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '999px', background: b.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: b.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
+                            {b.visibility}
+                          </span>
+                        </div>
+                        {b.description_en && <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>{b.description_en}</p>}
+                        {/* Bundle items */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                          {b.items.map((item, i) => (
+                            <span key={i} style={{ fontSize: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', borderRadius: '6px', padding: '3px 10px', color: 'var(--text-muted)' }}>
+                              {item.quantity}× {item.ticket_name}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Pricing */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {retail > 0 && <span style={{ fontSize: '13px', color: 'var(--text-dim)', textDecoration: 'line-through' }}>{fmtPrice(retail, b.currency)}</span>}
+                          <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 700, color: 'var(--gold)' }}>{fmtPrice(b.bundle_price, b.currency)}</span>
+                          {savings > 0 && retail > 0 && (
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--green)', background: 'rgba(92,184,138,0.12)', padding: '2px 8px', borderRadius: '6px' }}>
+                              Save {fmtPrice(savings, b.currency)} ({Math.round((savings / retail) * 100)}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <button onClick={() => openEditBundle(b)} style={{ fontSize: '12px', color: 'var(--gold)', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Edit</button>
+                        <button onClick={() => deleteBundle(b.id)} style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
