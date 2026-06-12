@@ -15,7 +15,6 @@ interface TicketType {
   collect_full_name: boolean; collect_email: boolean; collect_phone: boolean;
   collect_gender: boolean; collect_role: boolean; collect_passport: boolean;
   collect_country: boolean; collect_city: boolean;
-  requires_seat_selection: boolean;
   price_tiers?: PriceTier[];
 }
 
@@ -28,8 +27,7 @@ const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
   available_from: '', available_until: '',
   collect_full_name: true, collect_email: true, collect_phone: false,
   collect_gender: false, collect_role: false, collect_passport: false,
-  collect_country: false, collect_city: false,
-  requires_seat_selection: false, price_tiers: [],
+  collect_country: false, collect_city: false, price_tiers: [],
 });
 
 type FormTicket = Omit<TicketType, 'id' | 'stock_sold'> & { price_tiers: PriceTier[] };
@@ -72,7 +70,7 @@ export default function TicketConfigPage() {
 
   const openNew = () => { setForm({ ...blankTicket(), price_tiers: [] }); setEditingId(null); setActiveTab('general'); setShowForm(true); };
   const openEdit = (t: TicketType) => {
-    setForm({ ...t, requires_seat_selection: t.requires_seat_selection ?? false, price_tiers: t.price_tiers || [], available_from: t.available_from ? t.available_from.slice(0, 16) : '', available_until: t.available_until ? t.available_until.slice(0, 16) : '' });
+    setForm({ ...t, price_tiers: t.price_tiers || [], available_from: t.available_from ? t.available_from.slice(0, 16) : '', available_until: t.available_until ? t.available_until.slice(0, 16) : '' });
     setEditingId(t.id); setActiveTab('general'); setShowForm(true);
   };
   const set = <K extends keyof FormTicket>(k: K, v: FormTicket[K]) => setForm(f => ({ ...f, [k]: v }));
@@ -109,13 +107,10 @@ export default function TicketConfigPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <Link href="/admin/events" style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none' }}>← Events</Link>
         <span style={{ color: 'var(--border-muted)' }}>/</span>
         <h1 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '26px', fontWeight: 600, color: 'var(--text)' }}>Ticket Types</h1>
-        <Link href={`/admin/events/${eventId}/seat-map`} style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gold)', textDecoration: 'none', fontWeight: 600, letterSpacing: '0.04em', background: 'rgba(201,168,92,0.08)', padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(201,168,92,0.2)' }}>
-          🗺 Seat Map →
-        </Link>
       </div>
 
       {/* Ticket List */}
@@ -226,20 +221,6 @@ export default function TicketConfigPage() {
                         autoFocus
                       />
                     )}
-                  </div>
-                </div>
-
-                {/* Seat selection toggle */}
-                <div
-                  onClick={() => set('requires_seat_selection', !form.requires_seat_selection)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', background: form.requires_seat_selection ? 'rgba(201,168,92,0.06)' : 'var(--surface-2)', border: `1px solid ${form.requires_seat_selection ? 'rgba(201,168,92,0.25)' : 'var(--border-muted)'}`, cursor: 'pointer', transition: 'all 0.15s' }}
-                >
-                  <div>
-                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>Require seat / spot selection</p>
-                    <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Buyers must pick a spot from the venue map at checkout</p>
-                  </div>
-                  <div style={{ width: '40px', height: '22px', borderRadius: '999px', position: 'relative', flexShrink: 0, background: form.requires_seat_selection ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', border: '1px solid', borderColor: form.requires_seat_selection ? 'transparent' : 'var(--border-muted)', transition: 'background 0.2s' }}>
-                    <div style={{ position: 'absolute', top: '3px', width: '14px', height: '14px', background: form.requires_seat_selection ? '#09090f' : 'var(--text-muted)', borderRadius: '50%', transition: 'left 0.2s', left: form.requires_seat_selection ? '23px' : '3px' }} />
                   </div>
                 </div>
               </>

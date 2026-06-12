@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getCurrentPrice, isTicketAvailable, formatPrice } from '@/lib/pricing';
-import SeatPicker, { PublicSeatMap } from '@/components/SeatPicker';
 
 interface PriceTier {
   valid_until: string;
@@ -36,7 +35,6 @@ interface TicketType {
   collect_passport: boolean;
   collect_country: boolean;
   collect_city: boolean;
-  requires_seat_selection: boolean;
   price_tiers?: PriceTier[];
 }
 
@@ -107,16 +105,10 @@ export default function EventPage() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState<'browse' | 'seats' | 'attendees' | 'review'>('browse');
+  const [step, setStep] = useState<'browse' | 'attendees' | 'review'>('browse');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  // Seat selection
-  const [seatMap, setSeatMap] = useState<PublicSeatMap | null>(null);
-  const [seatMapLoading, setSeatMapLoading] = useState(false);
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  const [reservationIds, setReservationIds] = useState<string[]>([]);
-  const [reservedUntil, setReservedUntil] = useState<Date | null>(null);
 
   useEffect(() => {
     fetch(`/api/events/${slug}`)
@@ -152,8 +144,6 @@ export default function EventPage() {
   const getQuantity = (ticketId: string) => cart.find(c => c.ticket.id === ticketId)?.quantity ?? 0;
   const totalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const needsSeats = cart.some(item => item.ticket.requires_seat_selection);
-  const seatTickets = cart.filter(item => item.ticket.requires_seat_selection).reduce((sum, item) => sum + item.quantity, 0);
 
   const updateAttendee = (cartIdx: number, attIdx: number, field: keyof AttendeeForm, value: string) => {
     setCart(prev => prev.map((c, ci) => {
@@ -163,66 +153,18 @@ export default function EventPage() {
     }));
   };
 
-  // Load seat map when entering seats step
-  const loadSeatMap = async () => {
-    setSeatMapLoading(true);
-    try {
-      const res = await fetch(`/api/events/${slug}/seat-map`);
-      const data = await res.json();
-      setSeatMap(data);
-    } catch { /* no map */ }
-    setSeatMapLoading(false);
-  };
-
-  // Proceed from browse → seats (or attendees if no seats needed)
-  const handleContinueFromBrowse = () => {
-    if (needsSeats) {
-      setStep('seats');
-      if (!seatMap) loadSeatMap();
-    } else {
-      setStep('attendees');
-    }
-  };
-
-  // Reserve selected seats then advance to attendees
-  const handleConfirmSeats = async () => {
-    if (selectedSeats.length < seatTickets) {
-      setError(`Please select ${seatTickets} spot${seatTickets !== 1 ? 's' : ''} before continuing.`);
-      return;
-    }
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await fetch(`/api/events/${slug}/seat-map/reserve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seat_ids: selectedSeats }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not reserve seats');
-      setReservationIds(data.reservation_ids);
-      setReservedUntil(new Date(data.reserved_until));
-      setStep('attendees');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Seat reservation failed');
-    }
-    setSubmitting(false);
-  };
-
   const handleCheckout = async () => {
     if (!email) { setError('Please enter your email address.'); return; }
     setSubmitting(true);
     setError('');
     try {
-      const body: Record<string, unknown> = {
-        event_slug: slug, email,
-        items: cart.map(c => ({ ticket_type_id: c.ticket.id, quantity: c.quantity, attendees: c.attendees })),
-      };
-      if (reservationIds.length) body.seat_reservation_ids = reservationIds;
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          event_slug: slug, email,
+          items: cart.map(c => ({ ticket_type_id: c.ticket.id, quantity: c.quantity, attendees: c.attendees })),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Checkout failed');
@@ -341,32 +283,24 @@ export default function EventPage() {
       {/* ── Step divider ─────────────────────────────────── */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', marginBottom: '32px' }}>
-          {(needsSeats
-            ? [{ key: 'browse', label: 'Tickets' }, { key: 'seats', label: 'Seats' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
-            : [{ key: 'browse', label: 'Tickets' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
-          ).map(({ key, label }, i, arr) => {
-            const stepOrder = arr.map(s => s.key);
-            const isActive = step === key;
-            const isDone = stepOrder.indexOf(step) > i;
-            return (
-              <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '28px', height: '28px', borderRadius: '50%',
-                  background: isActive ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
-                  border: `1px solid ${isActive || isDone ? 'var(--gold)' : 'var(--border-muted)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', fontWeight: 700,
-                  color: isActive ? '#09090f' : 'var(--text-muted)',
-                  transition: 'all 0.2s',
-                }}>
-                  {isDone ? '✓' : i + 1}
-                </div>
-                <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: isActive ? 'var(--gold)' : 'var(--text-dim)' }}>
-                  {label}
-                </span>
+          {(['browse', 'attendees', 'review'] as const).map((s, i) => (
+            <div key={s} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: step === s ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
+                border: `1px solid ${step === s || (['browse','attendees','review'].indexOf(step) > i) ? 'var(--gold)' : 'var(--border-muted)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: 700,
+                color: step === s ? '#09090f' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+              }}>
+                {['browse','attendees','review'].indexOf(step) > i ? '✓' : i + 1}
               </div>
-            );
-          })}
+              <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: step === s ? 'var(--gold)' : 'var(--text-dim)' }}>
+                {s === 'browse' ? 'Tickets' : s === 'attendees' ? 'Details' : 'Review'}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -460,36 +394,6 @@ export default function EventPage() {
             <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
               Select your tickets above, then tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Continue →</span> below
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Seat selection ───────────────────────────────── */}
-      {step === 'seats' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px' }}>
-          {seatMapLoading && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>Loading venue map…</p>
-          )}
-          {!seatMapLoading && seatMap && (
-            <SeatPicker
-              seatMap={seatMap}
-              totalRequired={seatTickets}
-              selected={selectedSeats}
-              onSelect={setSelectedSeats}
-            />
-          )}
-          {!seatMapLoading && !seatMap && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
-              No seat map configured for this event.
-            </p>
-          )}
-          {/* End-of-step boundary */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '32px' }}>
-            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
-            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
-              Select your {seatTickets} spot{seatTickets !== 1 ? 's' : ''} above, then tap{' '}
-              <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Confirm Seats →</span> below
             </p>
           </div>
         </div>
@@ -650,7 +554,7 @@ export default function EventPage() {
           maxWidth: '640px',
           marginLeft: 'auto', marginRight: 'auto',
         }}>
-          {error && (step === 'browse' || step === 'seats') && <p style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '8px' }}>{error}</p>}
+          {error && step === 'browse' && <p style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '8px' }}>{error}</p>}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{totalItems} ticket{totalItems !== 1 ? 's' : ''}</span>
             <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">
@@ -660,7 +564,7 @@ export default function EventPage() {
 
           {step === 'browse' && (
             <button
-              onClick={handleContinueFromBrowse}
+              onClick={() => setStep('attendees')}
               className="cl-btn-gold"
               style={{
                 width: '100%', padding: '16px', borderRadius: '12px', border: 'none',
@@ -670,33 +574,6 @@ export default function EventPage() {
             >
               Continue →
             </button>
-          )}
-          {step === 'seats' && (
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setStep('browse')}
-                style={{
-                  padding: '16px 20px', borderRadius: '12px',
-                  background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
-                  color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px',
-                }}
-              >
-                ← Back
-              </button>
-              <button
-                onClick={handleConfirmSeats}
-                disabled={submitting}
-                style={{
-                  flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-                  background: submitting ? 'var(--surface-3)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
-                  color: submitting ? 'var(--text-muted)' : '#09090f',
-                  fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {submitting ? 'Reserving…' : `Confirm Seats (${selectedSeats.length}/${seatTickets}) →`}
-              </button>
-            </div>
           )}
           {step === 'attendees' && (
             <div style={{ display: 'flex', gap: '10px' }}>

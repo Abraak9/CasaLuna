@@ -341,32 +341,24 @@ export default function EventPage() {
       {/* ── Step divider ─────────────────────────────────── */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', marginBottom: '32px' }}>
-          {(needsSeats
-            ? [{ key: 'browse', label: 'Tickets' }, { key: 'seats', label: 'Seats' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
-            : [{ key: 'browse', label: 'Tickets' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
-          ).map(({ key, label }, i, arr) => {
-            const stepOrder = arr.map(s => s.key);
-            const isActive = step === key;
-            const isDone = stepOrder.indexOf(step) > i;
-            return (
-              <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '28px', height: '28px', borderRadius: '50%',
-                  background: isActive ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
-                  border: `1px solid ${isActive || isDone ? 'var(--gold)' : 'var(--border-muted)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', fontWeight: 700,
-                  color: isActive ? '#09090f' : 'var(--text-muted)',
-                  transition: 'all 0.2s',
-                }}>
-                  {isDone ? '✓' : i + 1}
-                </div>
-                <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: isActive ? 'var(--gold)' : 'var(--text-dim)' }}>
-                  {label}
-                </span>
+          {(['browse', 'attendees', 'review'] as const).map((s, i) => (
+            <div key={s} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: step === s ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)',
+                border: `1px solid ${step === s || (['browse','attendees','review'].indexOf(step) > i) ? 'var(--gold)' : 'var(--border-muted)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: 700,
+                color: step === s ? '#09090f' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+              }}>
+                {['browse','attendees','review'].indexOf(step) > i ? '✓' : i + 1}
               </div>
-            );
-          })}
+              <span style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: step === s ? 'var(--gold)' : 'var(--text-dim)' }}>
+                {s === 'browse' ? 'Tickets' : s === 'attendees' ? 'Details' : 'Review'}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -460,36 +452,6 @@ export default function EventPage() {
             <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
               Select your tickets above, then tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Continue →</span> below
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Seat selection ───────────────────────────────── */}
-      {step === 'seats' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px' }}>
-          {seatMapLoading && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>Loading venue map…</p>
-          )}
-          {!seatMapLoading && seatMap && (
-            <SeatPicker
-              seatMap={seatMap}
-              totalRequired={seatTickets}
-              selected={selectedSeats}
-              onSelect={setSelectedSeats}
-            />
-          )}
-          {!seatMapLoading && !seatMap && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
-              No seat map configured for this event.
-            </p>
-          )}
-          {/* End-of-step boundary */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '32px' }}>
-            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
-            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
-              Select your {seatTickets} spot{seatTickets !== 1 ? 's' : ''} above, then tap{' '}
-              <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Confirm Seats →</span> below
             </p>
           </div>
         </div>
@@ -650,7 +612,7 @@ export default function EventPage() {
           maxWidth: '640px',
           marginLeft: 'auto', marginRight: 'auto',
         }}>
-          {error && (step === 'browse' || step === 'seats') && <p style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '8px' }}>{error}</p>}
+          {error && step === 'browse' && <p style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '8px' }}>{error}</p>}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{totalItems} ticket{totalItems !== 1 ? 's' : ''}</span>
             <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">
@@ -660,7 +622,7 @@ export default function EventPage() {
 
           {step === 'browse' && (
             <button
-              onClick={handleContinueFromBrowse}
+              onClick={() => setStep('attendees')}
               className="cl-btn-gold"
               style={{
                 width: '100%', padding: '16px', borderRadius: '12px', border: 'none',
@@ -670,33 +632,6 @@ export default function EventPage() {
             >
               Continue →
             </button>
-          )}
-          {step === 'seats' && (
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setStep('browse')}
-                style={{
-                  padding: '16px 20px', borderRadius: '12px',
-                  background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
-                  color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px',
-                }}
-              >
-                ← Back
-              </button>
-              <button
-                onClick={handleConfirmSeats}
-                disabled={submitting}
-                style={{
-                  flex: 1, padding: '16px', borderRadius: '12px', border: 'none',
-                  background: submitting ? 'var(--surface-3)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
-                  color: submitting ? 'var(--text-muted)' : '#09090f',
-                  fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {submitting ? 'Reserving…' : `Confirm Seats (${selectedSeats.length}/${seatTickets}) →`}
-              </button>
-            </div>
           )}
           {step === 'attendees' && (
             <div style={{ display: 'flex', gap: '10px' }}>

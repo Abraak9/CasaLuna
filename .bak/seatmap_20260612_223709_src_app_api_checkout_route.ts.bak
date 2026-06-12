@@ -28,13 +28,12 @@ const CheckoutSchema = z.object({
   event_slug: z.string(),
   email: z.string().email(),
   items: z.array(OrderItemSchema).min(1),
-  seat_reservation_ids: z.array(z.string().uuid()).optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { event_slug, email, items, seat_reservation_ids } = CheckoutSchema.parse(body);
+    const { event_slug, email, items } = CheckoutSchema.parse(body);
 
     // Verify event exists
     const event = await queryOne<{ id: string; name_es: string; name_en: string }>(
@@ -130,16 +129,6 @@ export async function POST(req: NextRequest) {
             ]
           );
         }
-      }
-
-      // Confirm seat reservations
-      if (seat_reservation_ids?.length) {
-        await client.query(
-          `UPDATE seat_reservations
-           SET order_id = $1, status = 'confirmed'
-           WHERE id = ANY($2::uuid[]) AND status = 'held'`,
-          [orderId, seat_reservation_ids]
-        );
       }
 
       await client.query('COMMIT');
