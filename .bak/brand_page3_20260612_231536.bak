@@ -7,7 +7,6 @@ import ImageUpload from '@/components/ImageUpload';
 const SPEED_MIN = 5;
 const SPEED_MAX = 120;
 const SPEED_DEFAULT = 28;
-const DEFAULT_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
 
 function speedLabel(s: number) {
   if (s <= 12) return 'Very fast';
@@ -29,11 +28,6 @@ export default function BrandSettingsPage() {
   const [speedSaving, setSpeedSaving] = useState(false);
   const [speedSaved, setSpeedSaved] = useState(false);
 
-  const [bannerText, setBannerText] = useState(DEFAULT_TEXT);
-  const [textSaving, setTextSaving] = useState(false);
-  const [textSaved, setTextSaved] = useState(false);
-  const [textError, setTextError] = useState('');
-
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/settings/brand').then(r => r.json()),
@@ -41,7 +35,6 @@ export default function BrandSettingsPage() {
     ]).then(([brand, marquee]) => {
       setCurrentLogo(brand.logo_url || null);
       setSpeed(marquee.speed ?? SPEED_DEFAULT);
-      setBannerText(marquee.text ?? DEFAULT_TEXT);
       setLoading(false);
     });
   }, []);
@@ -85,37 +78,9 @@ export default function BrandSettingsPage() {
     setSpeedSaving(false);
   };
 
-  const handleSaveText = async () => {
-    const trimmed = bannerText.trim();
-    if (!trimmed) { setTextError('Banner text cannot be empty.'); return; }
-    setTextSaving(true); setTextSaved(false); setTextError('');
-    const res = await fetch('/api/admin/settings/marquee', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: trimmed }),
-    });
-    if (res.ok) {
-      setTextSaved(true);
-      setTimeout(() => setTextSaved(false), 3000);
-    } else {
-      const d = await res.json().catch(() => ({}));
-      setTextError(d.error || 'Save failed');
-    }
-    setTextSaving(false);
-  };
-
   const S = {
     label: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' },
     card: { background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '24px' },
-    saveBtn: (done: boolean): React.CSSProperties => ({
-      width: '100%',
-      background: done ? 'rgba(92,184,138,0.1)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
-      color: done ? 'var(--green)' : '#09090f',
-      fontWeight: 700, fontSize: '14px', letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-      padding: '13px', borderRadius: '10px',
-      border: done ? '1px solid var(--green)' : 'none',
-      cursor: 'pointer', transition: 'all 0.2s',
-    }),
   };
 
   return (
@@ -127,7 +92,7 @@ export default function BrandSettingsPage() {
         </p>
       </div>
 
-      {/* ── Logo: current ───────────────────────────────────── */}
+      {/* ── Logo ─────────────────────────────────────────────── */}
       <div style={{ ...S.card, marginBottom: '16px' }}>
         <label style={S.label}>Current Logo</label>
         {loading ? (
@@ -143,7 +108,14 @@ export default function BrandSettingsPage() {
                 <button
                   onClick={handleRemoveLogo}
                   disabled={removing}
-                  style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em', padding: '4px 12px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: removing ? 'not-allowed' : 'pointer', opacity: removing ? 0.6 : 1, flexShrink: 0 }}
+                  style={{
+                    fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em',
+                    padding: '4px 12px', borderRadius: '7px',
+                    background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)',
+                    color: 'var(--red)', cursor: removing ? 'not-allowed' : 'pointer',
+                    opacity: removing ? 0.6 : 1,
+                    flexShrink: 0,
+                  }}
                 >
                   {removing ? 'Removing…' : 'Remove Logo'}
                 </button>
@@ -153,89 +125,71 @@ export default function BrandSettingsPage() {
           </div>
         ) : (
           <div style={{ padding: '20px', background: 'var(--surface-2)', borderRadius: '10px', textAlign: 'center' }}>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No logo — text wordmark is shown</p>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No logo uploaded yet — text wordmark is shown</p>
           </div>
         )}
       </div>
 
-      {/* ── Logo: upload ─────────────────────────────────────── */}
       <div style={{ ...S.card, marginBottom: '16px' }}>
         <label style={S.label}>{currentLogo ? 'Replace Logo' : 'Upload Logo'}</label>
         <ImageUpload value={newLogoUrl} onChange={setNewLogoUrl} />
         {newLogoUrl && (
-          <button onClick={handleSaveLogo} disabled={saving} style={{ ...S.saveBtn(saved), marginTop: '16px', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          <button
+            onClick={handleSaveLogo}
+            disabled={saving}
+            style={{
+              marginTop: '16px', width: '100%',
+              background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f',
+              fontWeight: 700, fontSize: '14px', letterSpacing: '0.06em', textTransform: 'uppercase',
+              padding: '13px', borderRadius: '10px', border: 'none',
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+            }}
+          >
             {saving ? 'Saving…' : saved ? '✓ Saved — live on site' : 'Save & Publish Logo'}
           </button>
         )}
       </div>
 
-      {/* ── Banner text ──────────────────────────────────────── */}
+      {/* ── Marquee speed ─────────────────────────────────────── */}
       <div style={{ ...S.card, marginBottom: '16px' }}>
-        <label style={S.label}>Rolling Banner Text</label>
-        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '16px', lineHeight: 1.6 }}>
-          The text that scrolls across the homepage ticker. Use <strong style={{ color: 'var(--text-muted)' }}>·</strong> as a separator between items. End with a trailing space so items don&apos;t run together.
+        <label style={S.label}>Rolling Banner Speed</label>
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '20px', lineHeight: 1.6 }}>
+          Controls how fast the text ticker scrolls across the homepage. Lower value = faster scroll.
         </p>
 
         {/* Live preview */}
-        <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', background: 'var(--surface-2)', borderRadius: '8px', padding: '10px 0', marginBottom: '14px', border: '1px solid var(--border-muted)' }}>
+        <div style={{
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          background: 'var(--surface-2)',
+          borderRadius: '8px',
+          padding: '10px 0',
+          marginBottom: '20px',
+          border: '1px solid var(--border-muted)',
+        }}>
           <div style={{
             display: 'inline-flex',
             animation: `marquee ${speed}s linear infinite`,
             fontFamily: 'var(--font-cormorant)',
-            fontSize: '13px', fontWeight: 500, letterSpacing: '0.16em',
-            color: 'var(--gold)', textTransform: 'uppercase',
+            fontSize: '13px',
+            fontWeight: 500,
+            letterSpacing: '0.16em',
+            color: 'var(--gold)',
+            textTransform: 'uppercase',
           }}>
-            <span>{(bannerText || DEFAULT_TEXT).repeat(3)}</span>
-            <span aria-hidden="true">{(bannerText || DEFAULT_TEXT).repeat(3)}</span>
+            <span>CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · </span>
+            <span aria-hidden="true">CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · </span>
           </div>
         </div>
 
-        <textarea
-          value={bannerText}
-          onChange={e => { setBannerText(e.target.value); setTextError(''); }}
-          rows={3}
-          style={{
-            width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)',
-            color: 'var(--text)', borderRadius: '8px', padding: '10px 12px',
-            fontSize: '13px', outline: 'none', resize: 'vertical',
-            fontFamily: 'monospace', lineHeight: 1.6,
-            boxSizing: 'border-box',
-          }}
-        />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', marginBottom: '14px' }}>
-          {textError
-            ? <p style={{ fontSize: '12px', color: 'var(--red)' }}>{textError}</p>
-            : <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{bannerText.length}/500 characters</p>
-          }
-          <button
-            onClick={() => { setBannerText(DEFAULT_TEXT); setTextError(''); }}
-            style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            Reset to default
-          </button>
-        </div>
-
-        <button
-          onClick={handleSaveText}
-          disabled={textSaving || !bannerText.trim()}
-          style={{ ...S.saveBtn(textSaved), opacity: (textSaving || !bannerText.trim()) ? 0.6 : 1, cursor: (textSaving || !bannerText.trim()) ? 'not-allowed' : 'pointer' }}
-        >
-          {textSaving ? 'Saving…' : textSaved ? '✓ Saved — live on site' : 'Save Banner Text'}
-        </button>
-      </div>
-
-      {/* ── Banner speed ─────────────────────────────────────── */}
-      <div style={{ ...S.card, marginBottom: '16px' }}>
-        <label style={S.label}>Rolling Banner Speed</label>
-        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '20px', lineHeight: 1.6 }}>
-          Controls how fast the text ticker scrolls. Lower value = faster scroll.
-        </p>
-
+        {/* Slider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-dim)', minWidth: '36px' }}>Fast</span>
           <input
-            type="range" min={SPEED_MIN} max={SPEED_MAX} value={speed}
+            type="range"
+            min={SPEED_MIN}
+            max={SPEED_MAX}
+            value={speed}
             onChange={e => setSpeed(parseInt(e.target.value))}
             style={{ flex: 1, accentColor: '#c9a85c', cursor: 'pointer' }}
           />
@@ -244,9 +198,15 @@ export default function BrandSettingsPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{speed}s</strong>{' '}per cycle
+            <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{speed}s</strong>
+            {' '}per cycle
           </span>
-          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: '999px', background: 'rgba(201,168,92,0.1)', color: 'var(--gold)' }}>
+          <span style={{
+            fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '3px 10px', borderRadius: '999px',
+            background: 'rgba(201,168,92,0.1)',
+            color: 'var(--gold)',
+          }}>
             {speedLabel(speed)}
           </span>
         </div>
@@ -254,18 +214,28 @@ export default function BrandSettingsPage() {
         <button
           onClick={handleSaveSpeed}
           disabled={speedSaving}
-          style={{ ...S.saveBtn(speedSaved), opacity: speedSaving ? 0.7 : 1, cursor: speedSaving ? 'not-allowed' : 'pointer' }}
+          style={{
+            width: '100%',
+            background: speedSaved ? 'rgba(92,184,138,0.1)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
+            color: speedSaved ? 'var(--green)' : '#09090f',
+            fontWeight: 700, fontSize: '14px', letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '13px', borderRadius: '10px',
+            border: speedSaved ? '1px solid var(--green)' : 'none',
+            cursor: speedSaving ? 'not-allowed' : 'pointer',
+            opacity: speedSaving ? 0.7 : 1,
+            transition: 'all 0.2s',
+          }}
         >
           {speedSaving ? 'Saving…' : speedSaved ? '✓ Saved — live on site' : 'Save Banner Speed'}
         </button>
       </div>
 
-      {/* ── Info ─────────────────────────────────────────────── */}
+      {/* Info box */}
       <div style={{ background: 'rgba(201,168,92,0.05)', border: '1px solid rgba(201,168,92,0.15)', borderRadius: '10px', padding: '14px 16px' }}>
         <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '6px' }}>Where these settings apply</p>
         <ul style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.9, listStyle: 'none', padding: 0, margin: 0 }}>
           <li>🌐 Logo — public homepage · admin sidebar · navigation bar</li>
-          <li>🎞️ Banner text & speed — homepage rolling text ticker</li>
+          <li>🎞️ Banner speed — homepage rolling text ticker</li>
           <li>🎫 Email confirmations (coming soon)</li>
         </ul>
         <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>

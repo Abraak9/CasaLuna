@@ -2,23 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-const DEFAULT_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
+const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
+const marqueeRepeat = MARQUEE_TEXT.repeat(4);
 
 export default function MarqueeBanner() {
   const [speed, setSpeed] = useState(28);
-  const [text, setText] = useState(DEFAULT_TEXT);
 
   useEffect(() => {
     fetch('/api/settings/marquee')
       .then(r => r.json())
-      .then(d => {
-        if (d.speed) setSpeed(d.speed);
-        if (d.text) setText(d.text);
-      })
-      .catch(() => { /* keep defaults */ });
+      .then(d => { if (d.speed) setSpeed(d.speed); })
+      .catch(() => { /* keep default */ });
   }, []);
-
-  const repeated = text.repeat(4);
 
   return (
     <div style={{
@@ -38,8 +33,8 @@ export default function MarqueeBanner() {
           textTransform: 'uppercase',
           animationDuration: `${speed}s`,
         }}>
-          <span>{repeated}</span>
-          <span aria-hidden="true">{repeated}</span>
+          <span>{marqueeRepeat}</span>
+          <span aria-hidden="true">{marqueeRepeat}</span>
         </div>
       </div>
     </div>
