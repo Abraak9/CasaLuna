@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import EventTicketSelector from '@/components/EventTicketSelector';
 
 interface Promoter {
   id: string;
@@ -15,9 +14,6 @@ interface Promoter {
   total_commission: number;
   orders_count: number;
   actual_sales: number;
-  event_id: string | null;
-  event_name: string | null;
-  applies_to_ticket_type_ids: string[] | null;
   status: string;
   notes: string | null;
 }
@@ -34,8 +30,6 @@ export default function PromotersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm());
-  const [eventId, setEventId] = useState('');
-  const [ticketTypeIds, setTicketTypeIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,15 +38,9 @@ export default function PromotersPage() {
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const openNew = () => {
-    setForm(blankForm()); setEventId(''); setTicketTypeIds([]);
-    setEditId(null); setShowForm(true); setError('');
-  };
-
+  const openNew = () => { setForm(blankForm()); setEditId(null); setShowForm(true); setError(''); };
   const openEdit = (p: Promoter) => {
     setForm({ name: p.name, email: p.email || '', phone: p.phone || '', commission_type: p.commission_type, commission_value: String(p.commission_value), promo_code: p.promo_code || '', notes: p.notes || '', status: p.status });
-    setEventId(p.event_id || '');
-    setTicketTypeIds(p.applies_to_ticket_type_ids || []);
     setEditId(p.id); setShowForm(true); setError('');
   };
 
@@ -63,12 +51,7 @@ export default function PromotersPage() {
     const res = await fetch(url, {
       method: editId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form,
-        commission_value: Number(form.commission_value) || 0,
-        event_id: eventId || null,
-        applies_to_ticket_type_ids: ticketTypeIds.length ? ticketTypeIds : null,
-      }),
+      body: JSON.stringify({ ...form, commission_value: Number(form.commission_value) || 0 }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return; }
     load(); setShowForm(false); setSaving(false);
@@ -95,7 +78,7 @@ export default function PromotersPage() {
       </div>
 
       {showForm && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px', marginBottom: '20px', maxWidth: '600px' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '18px' }}>
             {editId ? 'Edit Promoter' : 'New Promoter'}
           </h3>
@@ -138,19 +121,10 @@ export default function PromotersPage() {
               <label style={S.label}>Notes</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} style={{ ...S.input, resize: 'none' }} />
             </div>
-
-            {/* Event + ticket targeting */}
-            <EventTicketSelector
-              eventId={eventId}
-              ticketTypeIds={ticketTypeIds}
-              onEventChange={setEventId}
-              onTicketTypesChange={setTicketTypeIds}
-            />
           </div>
-
           {error && <p style={{ color: 'var(--red)', fontSize: '13px', marginTop: '10px' }}>{error}</p>}
           <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-            <button onClick={() => { setShowForm(false); setError(''); }} style={{ padding: '10px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>
+            <button onClick={() => setShowForm(false)} style={{ padding: '10px 20px', borderRadius: '9px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}>
               Cancel
             </button>
             <button onClick={save} disabled={saving} style={{ flex: 1, padding: '10px', borderRadius: '9px', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', border: 'none', cursor: 'pointer' }}>
@@ -168,7 +142,7 @@ export default function PromotersPage() {
         ) : promoters.map(p => (
           <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
                 <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>{p.name}</p>
                 {p.promo_code && (
                   <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 700, color: 'var(--gold)', background: 'var(--gold-subtle)', padding: '2px 8px', borderRadius: '999px', letterSpacing: '0.06em' }}>
@@ -179,14 +153,9 @@ export default function PromotersPage() {
                   {p.status}
                 </span>
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                 {p.email || '—'} · {p.commission_value}{p.commission_type === 'percentage' ? '%' : '€'} commission
               </p>
-              {p.event_name && (
-                <p style={{ fontSize: '11px', color: 'var(--gold)' }}>
-                  {p.event_name}{p.applies_to_ticket_type_ids?.length ? ` · ${p.applies_to_ticket_type_ids.length} ticket type${p.applies_to_ticket_type_ids.length !== 1 ? 's' : ''}` : ' · All tickets'}
-                </p>
-              )}
             </div>
             <div style={{ display: 'flex', gap: '20px', marginRight: '12px' }}>
               <div style={{ textAlign: 'center' }}>

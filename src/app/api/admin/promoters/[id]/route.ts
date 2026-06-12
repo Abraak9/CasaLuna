@@ -10,15 +10,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const p = await queryOne(
     `UPDATE promoters SET
-       name = COALESCE($1, name), email = $2, phone = $3,
+       name = COALESCE($1, name),
+       email = $2,
+       phone = $3,
        commission_type = COALESCE($4, commission_type),
        commission_value = COALESCE($5, commission_value),
-       promo_code = $6, notes = $7, status = COALESCE($8, status)
-     WHERE id = $9 RETURNING *`,
-    [body.name, body.email || null, body.phone || null,
-     body.commission_type, body.commission_value,
-     body.promo_code ? body.promo_code.toUpperCase() : null,
-     body.notes || null, body.status, id]
+       promo_code = $6,
+       notes = $7,
+       status = COALESCE($8, status),
+       event_id = $9,
+       applies_to_ticket_type_ids = $10
+     WHERE id = $11 RETURNING *`,
+    [
+      body.name,
+      body.email || null,
+      body.phone || null,
+      body.commission_type,
+      body.commission_value,
+      body.promo_code ? body.promo_code.toUpperCase() : null,
+      body.notes || null,
+      body.status,
+      body.event_id || null,
+      body.applies_to_ticket_type_ids?.length ? body.applies_to_ticket_type_ids : null,
+      id,
+    ]
   );
 
   if (!p) return NextResponse.json({ error: 'Not found' }, { status: 404 });
