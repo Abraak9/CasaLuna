@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ImageUpload from '@/components/ImageUpload';
+import FocalPointPicker from '@/components/FocalPointPicker';
 
 const LABEL: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' };
 const INPUT: React.CSSProperties = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', outline: 'none' };
@@ -123,25 +124,11 @@ export default function NewEventPage() {
           {form.cover_image_url && (
             <div>
               <label style={LABEL}>Image Focus</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {(['top', 'center', 'bottom'] as const).map(pos => (
-                  <button
-                    key={pos}
-                    type="button"
-                    onClick={() => set('cover_image_position', pos)}
-                    style={{
-                      flex: 1, padding: '8px 4px', borderRadius: '8px', cursor: 'pointer',
-                      border: `1px solid ${form.cover_image_position === pos ? 'var(--gold)' : 'var(--border-muted)'}`,
-                      background: form.cover_image_position === pos ? 'rgba(201,168,92,0.1)' : 'var(--surface-2)',
-                      color: form.cover_image_position === pos ? 'var(--gold)' : 'var(--text-muted)',
-                      fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                    }}
-                  >
-                    {pos === 'top' ? '↑ Top' : pos === 'center' ? '⊙ Center' : '↓ Bottom'}
-                  </button>
-                ))}
-              </div>
-              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>Which part of the image stays visible when the hero crops it</p>
+              <FocalPointPicker
+                imageUrl={form.cover_image_url}
+                position={form.cover_image_position || '50% 50%'}
+                onChange={pos => set('cover_image_position', pos)}
+              />
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
