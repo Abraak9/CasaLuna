@@ -30,11 +30,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ logo_url, saved: true });
 }
-
-export async function DELETE() {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  await query(`DELETE FROM settings WHERE key = 'brand_logo_url'`);
-  return NextResponse.json({ removed: true });
-}

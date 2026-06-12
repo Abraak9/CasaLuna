@@ -21,7 +21,6 @@ export default function BrandSettingsPage() {
   const [newLogoUrl, setNewLogoUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [speed, setSpeed] = useState(SPEED_DEFAULT);
@@ -38,14 +37,6 @@ export default function BrandSettingsPage() {
       setLoading(false);
     });
   }, []);
-
-  const handleRemoveLogo = async () => {
-    if (!confirm('Remove the logo? The site will show the text wordmark instead.')) return;
-    setRemoving(true);
-    const res = await fetch('/api/admin/settings/brand', { method: 'DELETE' });
-    if (res.ok) setCurrentLogo(null);
-    setRemoving(false);
-  };
 
   const handleSaveLogo = async () => {
     if (!newLogoUrl) return;
@@ -102,24 +93,8 @@ export default function BrandSettingsPage() {
             <div style={{ background: 'var(--surface-2)', borderRadius: '12px', padding: '12px', border: '1px solid var(--border-muted)' }}>
               <Image src={currentLogo} alt="Current logo" width={80} height={80} style={{ borderRadius: '8px', objectFit: 'contain', display: 'block' }} unoptimized />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '4px' }}>
-                <p style={{ fontSize: '13px', color: 'var(--green)', fontWeight: 600 }}>✓ Logo active</p>
-                <button
-                  onClick={handleRemoveLogo}
-                  disabled={removing}
-                  style={{
-                    fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em',
-                    padding: '4px 12px', borderRadius: '7px',
-                    background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)',
-                    color: 'var(--red)', cursor: removing ? 'not-allowed' : 'pointer',
-                    opacity: removing ? 0.6 : 1,
-                    flexShrink: 0,
-                  }}
-                >
-                  {removing ? 'Removing…' : 'Remove Logo'}
-                </button>
-              </div>
+            <div>
+              <p style={{ fontSize: '13px', color: 'var(--green)', fontWeight: 600, marginBottom: '4px' }}>✓ Logo active</p>
               <p style={{ fontSize: '11px', color: 'var(--text-dim)', wordBreak: 'break-all', maxWidth: '320px' }}>{currentLogo}</p>
             </div>
           </div>
