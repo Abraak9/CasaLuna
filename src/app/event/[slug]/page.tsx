@@ -306,7 +306,7 @@ export default function EventPage() {
 
       {/* ── Browse tickets ───────────────────────────────── */}
       {step === 'browse' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {ticketTypes.filter(t => t.visibility !== 'hidden').map(ticket => {
               const price = getCurrentPrice(ticket);
@@ -388,12 +388,20 @@ export default function EventPage() {
               );
             })}
           </div>
+
+          {/* End-of-list boundary */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '20px' }}>
+            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
+              Select your tickets above, then tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Continue →</span> below
+            </p>
+          </div>
         </div>
       )}
 
       {/* ── Attendee details ─────────────────────────────── */}
       {step === 'attendees' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           {/* Email field */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
@@ -479,12 +487,20 @@ export default function EventPage() {
               </div>
             ))
           )}
+
+          {/* End-of-form boundary */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '4px' }}>
+            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
+              That&apos;s everything — tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Review Order →</span> below to continue
+            </p>
+          </div>
         </div>
       )}
 
       {/* ── Review ───────────────────────────────────────── */}
       {step === 'review' && (
-        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
             <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '16px' }}>
               Order Summary
@@ -499,18 +515,29 @@ export default function EventPage() {
                 </span>
               </div>
             ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', paddingBottom: '16px' }}>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600, color: 'var(--text)' }}>Total</span>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700 }} className="cl-gold-text">
                 {formatPrice(totalPrice)}
               </span>
             </div>
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '14px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                Tickets will be sent to{' '}
+                <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{email}</strong>
+              </p>
+            </div>
           </div>
-          <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '14px 16px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Tickets sent to: <strong style={{ color: 'var(--text)' }}>{email}</strong>
+
+          {/* End-of-form boundary */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
+              Review complete — tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Pay</span> below to complete your order
             </p>
           </div>
+
           {error && <p style={{ color: 'var(--red)', fontSize: '14px' }}>{error}</p>}
         </div>
       )}
