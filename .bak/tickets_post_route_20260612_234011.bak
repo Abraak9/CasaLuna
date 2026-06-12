@@ -40,7 +40,7 @@ export async function POST(
   const {
     name_en, name_es, description_en, description_es,
     ticket_category, stock_total, attendees_per_ticket, units_per_order,
-    price_scaling, base_price, currency, visibility,
+    price_scaling, base_price, visibility,
     available_from, available_until,
     collect_full_name, collect_email, collect_phone, collect_gender,
     collect_role, collect_passport, collect_country, collect_city,
@@ -57,17 +57,17 @@ export async function POST(
       `INSERT INTO ticket_types
          (id, event_id, name_en, name_es, description_en, description_es,
           ticket_category, stock_total, attendees_per_ticket, units_per_order,
-          price_scaling, base_price, currency, visibility,
+          price_scaling, base_price, visibility,
           available_from, available_until,
           collect_full_name, collect_email, collect_phone, collect_gender,
           collect_role, collect_passport, collect_country, collect_city, sort_order,
           requires_seat_selection)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
       [
         ticketId, event_id, name_en, name_es, description_en, description_es,
         ticket_category || 'full_pass', stock_total || 100, attendees_per_ticket || 1,
         units_per_order || 1, price_scaling || 'fixed', base_price || 0,
-        currency || 'EUR', visibility || 'visible', available_from, available_until,
+        visibility || 'visible', available_from, available_until,
         collect_full_name ?? true, collect_email ?? true, collect_phone ?? false,
         collect_gender ?? false, collect_role ?? false, collect_passport ?? false,
         collect_country ?? false, collect_city ?? false, sort_order ?? 0,

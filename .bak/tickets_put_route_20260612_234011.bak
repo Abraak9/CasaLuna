@@ -18,7 +18,7 @@ export async function PUT(
   const allowed = [
     'name_en', 'name_es', 'description_en', 'description_es',
     'ticket_category', 'stock_total', 'attendees_per_ticket', 'units_per_order',
-    'price_scaling', 'base_price', 'currency', 'visibility', 'available_from', 'available_until',
+    'price_scaling', 'base_price', 'visibility', 'available_from', 'available_until',
     'collect_full_name', 'collect_email', 'collect_phone', 'collect_gender',
     'collect_role', 'collect_passport', 'collect_country', 'collect_city', 'sort_order',
     'requires_seat_selection',

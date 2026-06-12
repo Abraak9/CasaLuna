@@ -10,7 +10,7 @@ interface TicketType {
   description_es: string; description_en: string;
   ticket_category: string; stock_total: number; stock_sold: number;
   attendees_per_ticket: number; units_per_order: number;
-  price_scaling: string; base_price: number; currency: string; visibility: string;
+  price_scaling: string; base_price: number; visibility: string;
   available_from: string; available_until: string;
   collect_full_name: boolean; collect_email: boolean; collect_phone: boolean;
   collect_gender: boolean; collect_role: boolean; collect_passport: boolean;
@@ -24,7 +24,7 @@ const BUILTIN_CATS = ['full_pass', 'day_pass', 'pack', 'vip', 'other'];
 const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
   name_es: '', name_en: '', description_es: '', description_en: '',
   ticket_category: 'full_pass', stock_total: 100, attendees_per_ticket: 1, units_per_order: 1,
-  price_scaling: 'fixed', base_price: 0, currency: 'EUR', visibility: 'visible',
+  price_scaling: 'fixed', base_price: 0, visibility: 'visible',
   available_from: '', available_until: '',
   collect_full_name: true, collect_email: true, collect_phone: false,
   collect_gender: false, collect_role: false, collect_passport: false,
@@ -135,7 +135,7 @@ export default function TicketConfigPage() {
                     {t.stock_sold}/{t.stock_total} sold
                     {' · '}
                     <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-cormorant)', fontSize: '14px', fontWeight: 600 }}>
-                      {t.currency === 'SEK' ? '' : '€'}{Number(t.base_price).toFixed(0)}{t.currency === 'SEK' ? ' kr' : ''}{t.price_scaling === 'by_date' && t.price_tiers?.length ? `–${t.currency === 'SEK' ? '' : '€'}${t.price_tiers.at(-1)?.price}${t.currency === 'SEK' ? ' kr' : ''}` : ''}
+                      €{Number(t.base_price).toFixed(0)}{t.price_scaling === 'by_date' && t.price_tiers?.length ? '–€' + t.price_tiers.at(-1)?.price : ''}
                     </span>
                   </p>
                 </div>
@@ -248,25 +248,16 @@ export default function TicketConfigPage() {
             {/* Prices Tab */}
             {activeTab === 'prices' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={LABEL}>Currency</label>
-                    <select value={form.currency} onChange={e => set('currency', e.target.value)} style={SELECT}>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="SEK">SEK (kr)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={LABEL}>Price scaling</label>
-                    <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)} style={SELECT}>
-                      <option value="fixed">Fixed price</option>
-                      <option value="by_date">Scaled by dates</option>
-                    </select>
-                  </div>
+                <div>
+                  <label style={LABEL}>Price scaling</label>
+                  <select value={form.price_scaling} onChange={e => set('price_scaling', e.target.value)} style={SELECT}>
+                    <option value="fixed">Fixed price</option>
+                    <option value="by_date">Scaled by dates</option>
+                  </select>
                 </div>
                 {form.price_scaling === 'fixed' && (
                   <div>
-                    <label style={LABEL}>Price ({form.currency === 'SEK' ? 'kr' : '€'})</label>
+                    <label style={LABEL}>Price (€)</label>
                     <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '160px' }} />
                   </div>
                 )}
@@ -280,14 +271,14 @@ export default function TicketConfigPage() {
                           <input type="date" value={tier.valid_until.slice(0, 10)} onChange={e => updateTier(i, 'valid_until', e.target.value + 'T23:59:00')} style={INPUT} />
                         </div>
                         <div style={{ width: '100px' }}>
-                          <label style={{ ...LABEL, marginBottom: '4px' }}>Price {form.currency === 'SEK' ? 'kr' : '€'}</label>
+                          <label style={{ ...LABEL, marginBottom: '4px' }}>Price €</label>
                           <input type="number" value={tier.price} onChange={e => updateTier(i, 'price', Number(e.target.value))} style={INPUT} />
                         </div>
                         <button onClick={() => removeTier(i)} style={{ paddingBottom: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
                       </div>
                     ))}
                     <div>
-                      <label style={{ ...LABEL, marginBottom: '4px' }}>Final price {form.currency === 'SEK' ? 'kr' : '€'}</label>
+                      <label style={{ ...LABEL, marginBottom: '4px' }}>Final price €</label>
                       <input type="number" value={form.base_price} onChange={e => set('base_price', Number(e.target.value))} style={{ ...INPUT, width: '120px' }} />
                     </div>
                     <button onClick={addTier} style={{ alignSelf: 'flex-start', fontSize: '12px', fontWeight: 700, color: 'var(--gold)', background: 'rgba(201,168,92,0.1)', border: '1px solid var(--border)', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
