@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { brand } from '@/config/brand';
-import MarqueeBanner from '@/components/MarqueeBanner';
 
 interface Event {
   id: string;
@@ -39,6 +38,8 @@ function formatEventDate(dateStr: string) {
   };
 }
 
+const MARQUEE_TEXT = 'CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · ';
+
 async function getBrandLogo(): Promise<string | null> {
   try {
     const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -49,9 +50,20 @@ async function getBrandLogo(): Promise<string | null> {
   } catch { return null; }
 }
 
+async function getMarqueeSpeed(): Promise<number> {
+  try {
+    const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const res = await fetch(`${base}/api/settings/marquee`, { next: { revalidate: 300 } });
+    if (!res.ok) return 28;
+    const data = await res.json();
+    return data.speed ?? 28;
+  } catch { return 28; }
+}
+
 export default async function HomePage() {
-  const [events, brandLogo] = await Promise.all([getEvents(), getBrandLogo()]);
+  const [events, brandLogo, marqueeSpeed] = await Promise.all([getEvents(), getBrandLogo(), getMarqueeSpeed()]);
   const upcoming = events.filter(e => e.status === 'published');
+  const marqueeRepeat = MARQUEE_TEXT.repeat(4);
 
   return (
     <main style={{ background: 'var(--bg)', minHeight: '100vh' }}>
@@ -188,7 +200,28 @@ export default async function HomePage() {
       </section>
 
       {/* ── Marquee ticker ─────────────────────────────────── */}
-      <MarqueeBanner />
+      <div style={{
+        borderTop: '1px solid var(--border-muted)',
+        borderBottom: '1px solid var(--border-muted)',
+        padding: '12px 0',
+        overflow: 'hidden',
+        background: 'var(--surface)',
+      }}>
+        <div className="cl-marquee">
+          <div className="cl-marquee-inner" style={{
+            fontFamily: 'var(--font-cormorant)',
+            fontSize: '14px',
+            fontWeight: 500,
+            letterSpacing: '0.18em',
+            color: 'var(--gold)',
+            textTransform: 'uppercase',
+            animationDuration: `${marqueeSpeed}s`,
+          }}>
+            <span>{marqueeRepeat}</span>
+            <span aria-hidden="true">{marqueeRepeat}</span>
+          </div>
+        </div>
+      </div>
 
       {/* ── Events ─────────────────────────────────────────── */}
       <section id="events" style={{ padding: '64px 24px', maxWidth: '900px', margin: '0 auto' }}>
