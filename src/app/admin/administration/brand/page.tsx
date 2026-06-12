@@ -4,6 +4,18 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import ImageUpload from '@/components/ImageUpload';
 
+const SPEED_MIN = 5;
+const SPEED_MAX = 120;
+const SPEED_DEFAULT = 28;
+
+function speedLabel(s: number) {
+  if (s <= 12) return 'Very fast';
+  if (s <= 20) return 'Fast';
+  if (s <= 35) return 'Normal';
+  if (s <= 55) return 'Slow';
+  return 'Very slow';
+}
+
 export default function BrandSettingsPage() {
   const [currentLogo, setCurrentLogo] = useState<string | null>(null);
   const [newLogoUrl, setNewLogoUrl] = useState('');
@@ -11,13 +23,22 @@ export default function BrandSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [speed, setSpeed] = useState(SPEED_DEFAULT);
+  const [speedSaving, setSpeedSaving] = useState(false);
+  const [speedSaved, setSpeedSaved] = useState(false);
+
   useEffect(() => {
-    fetch('/api/admin/settings/brand')
-      .then(r => r.json())
-      .then(d => { setCurrentLogo(d.logo_url || null); setLoading(false); });
+    Promise.all([
+      fetch('/api/admin/settings/brand').then(r => r.json()),
+      fetch('/api/admin/settings/marquee').then(r => r.json()),
+    ]).then(([brand, marquee]) => {
+      setCurrentLogo(brand.logo_url || null);
+      setSpeed(marquee.speed ?? SPEED_DEFAULT);
+      setLoading(false);
+    });
   }, []);
 
-  const handleSave = async () => {
+  const handleSaveLogo = async () => {
     if (!newLogoUrl) return;
     setSaving(true); setSaved(false);
     const res = await fetch('/api/admin/settings/brand', {
@@ -34,6 +55,20 @@ export default function BrandSettingsPage() {
     setSaving(false);
   };
 
+  const handleSaveSpeed = async () => {
+    setSpeedSaving(true); setSpeedSaved(false);
+    const res = await fetch('/api/admin/settings/marquee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speed }),
+    });
+    if (res.ok) {
+      setSpeedSaved(true);
+      setTimeout(() => setSpeedSaved(false), 3000);
+    }
+    setSpeedSaving(false);
+  };
+
   const S = {
     label: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' },
     card: { background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '24px' },
@@ -44,11 +79,11 @@ export default function BrandSettingsPage() {
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '28px', fontWeight: 600, color: 'var(--text)' }}>Brand Settings</h1>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Upload your logo here — it updates everywhere on the site instantly.
+          Logo and site appearance settings — changes go live instantly.
         </p>
       </div>
 
-      {/* Current logo */}
+      {/* ── Logo ─────────────────────────────────────────────── */}
       <div style={{ ...S.card, marginBottom: '16px' }}>
         <label style={S.label}>Current Logo</label>
         {loading ? (
@@ -70,14 +105,12 @@ export default function BrandSettingsPage() {
         )}
       </div>
 
-      {/* Upload new logo */}
-      <div style={S.card}>
+      <div style={{ ...S.card, marginBottom: '16px' }}>
         <label style={S.label}>{currentLogo ? 'Replace Logo' : 'Upload Logo'}</label>
         <ImageUpload value={newLogoUrl} onChange={setNewLogoUrl} />
-
         {newLogoUrl && (
           <button
-            onClick={handleSave}
+            onClick={handleSaveLogo}
             disabled={saving}
             style={{
               marginTop: '16px', width: '100%',
@@ -92,16 +125,96 @@ export default function BrandSettingsPage() {
         )}
       </div>
 
+      {/* ── Marquee speed ─────────────────────────────────────── */}
+      <div style={{ ...S.card, marginBottom: '16px' }}>
+        <label style={S.label}>Rolling Banner Speed</label>
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '20px', lineHeight: 1.6 }}>
+          Controls how fast the text ticker scrolls across the homepage. Lower value = faster scroll.
+        </p>
+
+        {/* Live preview */}
+        <div style={{
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          background: 'var(--surface-2)',
+          borderRadius: '8px',
+          padding: '10px 0',
+          marginBottom: '20px',
+          border: '1px solid var(--border-muted)',
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            animation: `marquee ${speed}s linear infinite`,
+            fontFamily: 'var(--font-cormorant)',
+            fontSize: '13px',
+            fontWeight: 500,
+            letterSpacing: '0.16em',
+            color: 'var(--gold)',
+            textTransform: 'uppercase',
+          }}>
+            <span>CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · </span>
+            <span aria-hidden="true">CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · KIZOMBA · WORKSHOPS · BOOTCAMPS · EVENTS · TICKETS · GÖTEBORG · CASA LUNA · SOCIAL DANCE · LATIN PARTIES · SALSA · BACHATA · </span>
+          </div>
+        </div>
+
+        {/* Slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', minWidth: '36px' }}>Fast</span>
+          <input
+            type="range"
+            min={SPEED_MIN}
+            max={SPEED_MAX}
+            value={speed}
+            onChange={e => setSpeed(parseInt(e.target.value))}
+            style={{ flex: 1, accentColor: '#c9a85c', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', minWidth: '36px', textAlign: 'right' }}>Slow</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{speed}s</strong>
+            {' '}per cycle
+          </span>
+          <span style={{
+            fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '3px 10px', borderRadius: '999px',
+            background: 'rgba(201,168,92,0.1)',
+            color: 'var(--gold)',
+          }}>
+            {speedLabel(speed)}
+          </span>
+        </div>
+
+        <button
+          onClick={handleSaveSpeed}
+          disabled={speedSaving}
+          style={{
+            width: '100%',
+            background: speedSaved ? 'rgba(92,184,138,0.1)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)',
+            color: speedSaved ? 'var(--green)' : '#09090f',
+            fontWeight: 700, fontSize: '14px', letterSpacing: '0.06em', textTransform: 'uppercase',
+            padding: '13px', borderRadius: '10px',
+            border: speedSaved ? '1px solid var(--green)' : 'none',
+            cursor: speedSaving ? 'not-allowed' : 'pointer',
+            opacity: speedSaving ? 0.7 : 1,
+            transition: 'all 0.2s',
+          }}
+        >
+          {speedSaving ? 'Saving…' : speedSaved ? '✓ Saved — live on site' : 'Save Banner Speed'}
+        </button>
+      </div>
+
       {/* Info box */}
-      <div style={{ marginTop: '16px', background: 'rgba(201,168,92,0.05)', border: '1px solid rgba(201,168,92,0.15)', borderRadius: '10px', padding: '14px 16px' }}>
-        <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '6px' }}>Where the logo appears</p>
+      <div style={{ background: 'rgba(201,168,92,0.05)', border: '1px solid rgba(201,168,92,0.15)', borderRadius: '10px', padding: '14px 16px' }}>
+        <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '6px' }}>Where these settings apply</p>
         <ul style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.9, listStyle: 'none', padding: 0, margin: 0 }}>
-          <li>🌐 Public homepage — navigation bar + hero section + footer</li>
-          <li>⚙️ Admin panel — sidebar header</li>
+          <li>🌐 Logo — public homepage · admin sidebar · navigation bar</li>
+          <li>🎞️ Banner speed — homepage rolling text ticker</li>
           <li>🎫 Email confirmations (coming soon)</li>
         </ul>
         <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>
-          Recommended: square PNG, 400×400px minimum, transparent or black background.
+          Logo recommendation: square PNG, 400×400px minimum, transparent or black background.
         </p>
       </div>
     </div>

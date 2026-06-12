@@ -50,18 +50,8 @@ async function getBrandLogo(): Promise<string | null> {
   } catch { return null; }
 }
 
-async function getMarqueeSpeed(): Promise<number> {
-  try {
-    const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${base}/api/settings/marquee`, { next: { revalidate: 300 } });
-    if (!res.ok) return 28;
-    const data = await res.json();
-    return data.speed ?? 28;
-  } catch { return 28; }
-}
-
 export default async function HomePage() {
-  const [events, brandLogo, marqueeSpeed] = await Promise.all([getEvents(), getBrandLogo(), getMarqueeSpeed()]);
+  const [events, brandLogo] = await Promise.all([getEvents(), getBrandLogo()]);
   const upcoming = events.filter(e => e.status === 'published');
   const marqueeRepeat = MARQUEE_TEXT.repeat(4);
 
@@ -215,7 +205,6 @@ export default async function HomePage() {
             letterSpacing: '0.18em',
             color: 'var(--gold)',
             textTransform: 'uppercase',
-            animationDuration: `${marqueeSpeed}s`,
           }}>
             <span>{marqueeRepeat}</span>
             <span aria-hidden="true">{marqueeRepeat}</span>
