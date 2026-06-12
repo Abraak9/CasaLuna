@@ -126,13 +126,6 @@ export default async function HomePage() {
         }} />
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          {/* Logo */}
-          {brandLogo && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-              <Image src={brandLogo} alt={brand.name} width={120} height={120} style={{ borderRadius: '16px', objectFit: 'contain' }} priority unoptimized />
-            </div>
-          )}
-
           {/* Eyebrow */}
           <p style={{
             fontSize: '11px',
@@ -140,33 +133,49 @@ export default async function HomePage() {
             letterSpacing: '0.24em',
             textTransform: 'uppercase',
             color: 'var(--gold)',
-            marginBottom: '20px',
+            marginBottom: '24px',
           }}>
             Official Ticketing
           </p>
 
-          {/* Headline */}
-          <h1 style={{
-            fontFamily: 'var(--font-cormorant)',
-            fontSize: 'clamp(52px, 10vw, 100px)',
-            fontWeight: 300,
-            lineHeight: 0.9,
-            letterSpacing: '-0.02em',
-            color: 'var(--text)',
-            marginBottom: '8px',
-          }}>
-            Casa
-          </h1>
-          <h1 style={{
-            fontFamily: 'var(--font-cormorant)',
-            fontSize: 'clamp(52px, 10vw, 100px)',
-            fontWeight: 600,
-            lineHeight: 0.9,
-            letterSpacing: '-0.02em',
-            marginBottom: '32px',
-          }} className="cl-gold-text">
-            Luna
-          </h1>
+          {/* Logo replaces headline when set; falls back to text */}
+          {brandLogo ? (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+              <Image
+                src={brandLogo}
+                alt={brand.name}
+                width={260}
+                height={260}
+                style={{ objectFit: 'contain', maxWidth: '260px', maxHeight: '260px' }}
+                priority
+                unoptimized
+              />
+            </div>
+          ) : (
+            <>
+              <h1 style={{
+                fontFamily: 'var(--font-cormorant)',
+                fontSize: 'clamp(52px, 10vw, 100px)',
+                fontWeight: 300,
+                lineHeight: 0.9,
+                letterSpacing: '-0.02em',
+                color: 'var(--text)',
+                marginBottom: '8px',
+              }}>
+                Casa
+              </h1>
+              <h1 style={{
+                fontFamily: 'var(--font-cormorant)',
+                fontSize: 'clamp(52px, 10vw, 100px)',
+                fontWeight: 600,
+                lineHeight: 0.9,
+                letterSpacing: '-0.02em',
+                marginBottom: '32px',
+              }} className="cl-gold-text">
+                Luna
+              </h1>
+            </>
+          )}
 
           <p style={{
             fontSize: '15px',
@@ -353,9 +362,6 @@ export default async function HomePage() {
         gap: '12px',
         color: 'var(--text-dim)',
       }}>
-        {brandLogo && (
-          <Image src={brandLogo} alt={brand.name} width={48} height={48} style={{ borderRadius: '8px', objectFit: 'contain', opacity: 0.85 }} unoptimized />
-        )}
         <p style={{ fontSize: '12px', letterSpacing: '0.04em' }}>
           © {brand.name} AB · {brand.location} ·{' '}
           <a href={`mailto:${brand.email}`} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
