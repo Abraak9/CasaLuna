@@ -51,6 +51,7 @@ interface Event {
   location_address: string;
   location_city: string;
   cover_image_url: string;
+  cover_image_position: string;
 }
 
 interface AttendeeForm {
@@ -197,8 +198,10 @@ export default function EventPage() {
     );
   }
 
-  const eventDate = new Date(event.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const eventTime = new Date(event.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  // Use UTC methods to display times exactly as entered — avoids browser timezone conversion
+  const _d = new Date(event.date);
+  const eventDate = _d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const eventTime = `${String(_d.getUTCHours()).padStart(2, '0')}:${String(_d.getUTCMinutes()).padStart(2, '0')}`;
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: totalItems > 0 ? '120px' : '60px' }}>
@@ -206,8 +209,13 @@ export default function EventPage() {
       {/* ── Hero ─────────────────────────────────────────── */}
       <div style={{ position: 'relative' }}>
         {event.cover_image_url ? (
-          <div style={{ position: 'relative', height: '340px', background: 'var(--surface)' }}>
-            <Image src={event.cover_image_url} alt={event.name_en || event.name_es} fill style={{ objectFit: 'cover' }} />
+          <div style={{ position: 'relative', height: '400px', background: 'var(--surface)' }}>
+            <Image
+              src={event.cover_image_url}
+              alt={event.name_en || event.name_es}
+              fill
+              style={{ objectFit: 'cover', objectPosition: event.cover_image_position || 'center' }}
+            />
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(9,9,15,0.95) 0%, rgba(9,9,15,0.3) 60%, transparent 100%)' }} />
           </div>
         ) : (

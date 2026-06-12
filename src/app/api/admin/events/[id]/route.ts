@@ -29,7 +29,7 @@ export async function PUT(
   const fields = [
     'name_en', 'name_es', 'description_en', 'description_es',
     'date', 'end_date', 'location_name', 'location_address', 'location_city',
-    'cover_image_url', 'status', 'checkin_pin', 'max_capacity', 'slug',
+    'cover_image_url', 'cover_image_position', 'status', 'checkin_pin', 'max_capacity', 'slug',
   ];
 
   const updates: string[] = [];

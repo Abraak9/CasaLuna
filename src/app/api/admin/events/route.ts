@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const {
     slug, name_en, name_es, description_en, description_es,
     date, end_date, location_name, location_address, location_city,
-    cover_image_url, status, checkin_pin, max_capacity,
+    cover_image_url, cover_image_position, status, checkin_pin, max_capacity,
   } = body;
 
   if (!slug || !name_es || !date) {
@@ -46,13 +46,13 @@ export async function POST(req: NextRequest) {
     `INSERT INTO events
        (id, slug, name_en, name_es, description_en, description_es,
         date, end_date, location_name, location_address, location_city,
-        cover_image_url, status, checkin_pin, max_capacity)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        cover_image_url, cover_image_position, status, checkin_pin, max_capacity)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING *`,
     [
       uuidv4(), slug, name_en, name_es, description_en, description_es,
       date, end_date, location_name, location_address, location_city,
-      cover_image_url, status || 'draft', checkin_pin, max_capacity,
+      cover_image_url, cover_image_position || 'center', status || 'draft', checkin_pin, max_capacity,
     ]
   );
 

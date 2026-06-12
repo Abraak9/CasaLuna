@@ -19,7 +19,7 @@ export default function EditEventPage() {
   const [form, setForm] = useState({
     name: '', description: '', slug: '', date: '', end_date: '',
     location_name: '', location_address: '', location_city: '',
-    cover_image_url: '', checkin_pin: '', max_capacity: '', status: 'draft',
+    cover_image_url: '', cover_image_position: 'center', checkin_pin: '', max_capacity: '', status: 'draft',
   });
 
   useEffect(() => {
@@ -36,6 +36,7 @@ export default function EditEventPage() {
           location_address: event.location_address || '',
           location_city: event.location_city || '',
           cover_image_url: event.cover_image_url || '',
+          cover_image_position: event.cover_image_position || 'center',
           checkin_pin: event.checkin_pin || '',
           max_capacity: event.max_capacity?.toString() || '',
           status: event.status || 'draft',
@@ -57,7 +58,8 @@ export default function EditEventPage() {
         description_en: form.description, description_es: form.description,
         slug: form.slug, date: form.date, end_date: form.end_date || null,
         location_name: form.location_name, location_address: form.location_address, location_city: form.location_city,
-        cover_image_url: form.cover_image_url, checkin_pin: form.checkin_pin,
+        cover_image_url: form.cover_image_url, cover_image_position: form.cover_image_position,
+        checkin_pin: form.checkin_pin,
         max_capacity: form.max_capacity ? Number(form.max_capacity) : null, status: form.status,
       }),
     });
@@ -145,6 +147,30 @@ export default function EditEventPage() {
             <label style={LABEL}>Cover Image</label>
             <ImageUpload value={form.cover_image_url} onChange={url => set('cover_image_url', url)} />
           </div>
+          {form.cover_image_url && (
+            <div>
+              <label style={LABEL}>Image Focus</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(['top', 'center', 'bottom'] as const).map(pos => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => set('cover_image_position', pos)}
+                    style={{
+                      flex: 1, padding: '8px 4px', borderRadius: '8px', cursor: 'pointer',
+                      border: `1px solid ${form.cover_image_position === pos ? 'var(--gold)' : 'var(--border-muted)'}`,
+                      background: form.cover_image_position === pos ? 'rgba(201,168,92,0.1)' : 'var(--surface-2)',
+                      color: form.cover_image_position === pos ? 'var(--gold)' : 'var(--text-muted)',
+                      fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    }}
+                  >
+                    {pos === 'top' ? '↑ Top' : pos === 'center' ? '⊙ Center' : '↓ Bottom'}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>Which part of the image stays visible when the hero crops it</p>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={LABEL}>Check-in PIN</label>
