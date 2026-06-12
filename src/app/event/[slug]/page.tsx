@@ -390,7 +390,7 @@ export default function EventPage() {
           </div>
 
           {/* End-of-list boundary */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', paddingTop: '40px' }}>
             <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.03em' }}>
               Select your tickets above, then tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Continue →</span> below

@@ -18,6 +18,8 @@ interface TicketType {
   price_tiers?: PriceTier[];
 }
 
+const BUILTIN_CATS = ['full_pass', 'day_pass', 'pack', 'vip', 'other'];
+
 const blankTicket = (): Omit<TicketType, 'id' | 'stock_sold'> => ({
   name_es: '', name_en: '', description_es: '', description_en: '',
   ticket_category: 'full_pass', stock_total: 100, attendees_per_ticket: 1, units_per_order: 1,
@@ -95,6 +97,11 @@ export default function TicketConfigPage() {
     await fetch(`/api/admin/tickets/${tid}`, { method: 'DELETE' });
     load();
   };
+
+  // Derive custom categories already in use across this event's tickets
+  const customCats = [...new Set(tickets.map(t => t.ticket_category).filter(c => !BUILTIN_CATS.includes(c)))];
+  const allCatValues = [...BUILTIN_CATS, ...customCats];
+  const isCustomCat = !allCatValues.includes(form.ticket_category);
 
   const tabs = ['general', 'prices', 'fields', 'advanced'] as const;
 
@@ -190,13 +197,30 @@ export default function TicketConfigPage() {
                   </div>
                   <div>
                     <label style={LABEL}>Category</label>
-                    <select value={form.ticket_category} onChange={e => set('ticket_category', e.target.value)} style={SELECT}>
+                    <select
+                      value={isCustomCat ? '__custom__' : form.ticket_category}
+                      onChange={e => set('ticket_category', e.target.value === '__custom__' ? '' : e.target.value)}
+                      style={SELECT}
+                    >
                       <option value="full_pass">Full Pass</option>
                       <option value="day_pass">Day Pass</option>
                       <option value="pack">Pack</option>
                       <option value="vip">VIP</option>
                       <option value="other">Other</option>
+                      {customCats.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__custom__">＋ Add custom…</option>
                     </select>
+                    {isCustomCat && (
+                      <input
+                        value={form.ticket_category}
+                        onChange={e => set('ticket_category', e.target.value)}
+                        placeholder="e.g. Weekend Pass, Early Bird…"
+                        style={{ ...INPUT, marginTop: '8px' }}
+                        autoFocus
+                      />
+                    )}
                   </div>
                 </div>
               </>
