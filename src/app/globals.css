@@ -2,26 +2,26 @@
 
 /* ─── CasaLuna Design Tokens ─────────────────────────────────────────── */
 :root {
-  /* Backgrounds */
-  --bg:          #09090f;
-  --surface:     #111118;
-  --surface-2:   #16161f;
-  --surface-3:   #1c1c28;
+  /* Backgrounds — Warm Ivory theme */
+  --bg:          #0c0b09;
+  --surface:     #141210;
+  --surface-2:   #1a1814;
+  --surface-3:   #201e19;
 
   /* Gold palette (from CasaLuna logo) */
-  --gold:        #c9a85c;
+  --gold:        #c5a252;
   --gold-light:  #e8d5a0;
-  --gold-dim:    rgba(201, 168, 92, 0.25);
-  --gold-subtle: rgba(201, 168, 92, 0.08);
+  --gold-dim:    rgba(197, 162, 82, 0.25);
+  --gold-subtle: rgba(197, 162, 82, 0.08);
 
-  /* Text */
-  --text:        #f0ead6;
-  --text-muted:  #9898aa;
-  --text-dim:    #72728a;
+  /* Text — warm cream tones, no grey */
+  --text:        #f0e8d4;
+  --text-muted:  #c8b898;
+  --text-dim:    #a8926a;
 
-  /* Borders */
-  --border:      rgba(201, 168, 92, 0.15);
-  --border-muted: rgba(255, 255, 255, 0.06);
+  /* Borders — warm-tinted */
+  --border:      rgba(197, 162, 82, 0.18);
+  --border-muted: rgba(240, 220, 180, 0.07);
 
   /* Status */
   --green:       #5cb88a;
