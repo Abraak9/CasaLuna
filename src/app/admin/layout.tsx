@@ -133,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {section.title && (
               <p style={{
                 fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em',
-                textTransform: 'uppercase', color: 'var(--text-dim)',
+                textTransform: 'uppercase', color: 'rgba(201,168,92,0.6)',
                 padding: '16px 10px 6px',
               }}>
                 {section.title}
