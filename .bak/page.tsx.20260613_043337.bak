@@ -100,49 +100,6 @@ const labelStyle: React.CSSProperties = {
   display: 'block', marginBottom: '6px',
 };
 
-// ─── Attendee form (module-level so React never remounts it on re-render) ─────
-
-function AttendeeFields({
-  att, onChange, label, fields,
-}: {
-  att: AttendeeForm;
-  onChange: (field: keyof AttendeeForm, val: string) => void;
-  label: string;
-  fields: { collect_full_name: boolean; collect_email: boolean; collect_phone: boolean; collect_gender: boolean; collect_role: boolean; collect_passport: boolean; collect_country: boolean; collect_city: boolean };
-}) {
-  return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gold)', marginBottom: '2px', letterSpacing: '0.04em' }}>{label}</h3>
-      {fields.collect_full_name && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div><label style={labelStyle}>First name *</label><input value={att.first_name} onChange={e => onChange('first_name', e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>Last name *</label><input value={att.last_name} onChange={e => onChange('last_name', e.target.value)} style={inputStyle} /></div>
-        </div>
-      )}
-      {fields.collect_phone && <div><label style={labelStyle}>Phone</label><input type="tel" value={att.phone} onChange={e => onChange('phone', e.target.value)} style={inputStyle} /></div>}
-      {fields.collect_gender && (
-        <div><label style={labelStyle}>Gender</label>
-          <select value={att.gender} onChange={e => onChange('gender', e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
-            <option value="">Select…</option>
-            <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
-          </select>
-        </div>
-      )}
-      {fields.collect_role && (
-        <div><label style={labelStyle}>Dance role</label>
-          <select value={att.role} onChange={e => onChange('role', e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
-            <option value="">Select…</option>
-            <option value="leader">Leader</option><option value="follower">Follower</option><option value="both">Both</option>
-          </select>
-        </div>
-      )}
-      {fields.collect_country && <div><label style={labelStyle}>Country</label><input value={att.residence_country} onChange={e => onChange('residence_country', e.target.value)} style={inputStyle} /></div>}
-      {fields.collect_city && <div><label style={labelStyle}>City</label><input value={att.residence_city} onChange={e => onChange('residence_city', e.target.value)} style={inputStyle} /></div>}
-      {fields.collect_passport && <div><label style={labelStyle}>Passport / Document</label><input value={att.passport_number} onChange={e => onChange('passport_number', e.target.value)} style={inputStyle} /></div>}
-    </div>
-  );
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventPage() {
@@ -391,6 +348,48 @@ export default function EventPage() {
     if (ungrouped.length) sections.push({ group: null, tickets: ungrouped });
     return sections;
   };
+
+  // ─── Attendee form renderer (shared) ────────────────────────────────────────
+
+  const AttendeeFields = ({
+    att, onChange, label,
+    fields,
+  }: {
+    att: AttendeeForm;
+    onChange: (field: keyof AttendeeForm, val: string) => void;
+    label: string;
+    fields: { collect_full_name: boolean; collect_email: boolean; collect_phone: boolean; collect_gender: boolean; collect_role: boolean; collect_passport: boolean; collect_country: boolean; collect_city: boolean };
+  }) => (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gold)', marginBottom: '2px', letterSpacing: '0.04em' }}>{label}</h3>
+      {fields.collect_full_name && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div><label style={labelStyle}>First name *</label><input value={att.first_name} onChange={e => onChange('first_name', e.target.value)} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Last name *</label><input value={att.last_name} onChange={e => onChange('last_name', e.target.value)} style={inputStyle} /></div>
+        </div>
+      )}
+      {fields.collect_phone && <div><label style={labelStyle}>Phone</label><input type="tel" value={att.phone} onChange={e => onChange('phone', e.target.value)} style={inputStyle} /></div>}
+      {fields.collect_gender && (
+        <div><label style={labelStyle}>Gender</label>
+          <select value={att.gender} onChange={e => onChange('gender', e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+            <option value="">Select…</option>
+            <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
+          </select>
+        </div>
+      )}
+      {fields.collect_role && (
+        <div><label style={labelStyle}>Dance role</label>
+          <select value={att.role} onChange={e => onChange('role', e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+            <option value="">Select…</option>
+            <option value="leader">Leader</option><option value="follower">Follower</option><option value="both">Both</option>
+          </select>
+        </div>
+      )}
+      {fields.collect_country && <div><label style={labelStyle}>Country</label><input value={att.residence_country} onChange={e => onChange('residence_country', e.target.value)} style={inputStyle} /></div>}
+      {fields.collect_city && <div><label style={labelStyle}>City</label><input value={att.residence_city} onChange={e => onChange('residence_city', e.target.value)} style={inputStyle} /></div>}
+      {fields.collect_passport && <div><label style={labelStyle}>Passport / Document</label><input value={att.passport_number} onChange={e => onChange('passport_number', e.target.value)} style={inputStyle} /></div>}
+    </div>
+  );
 
   // ─── Loading / not found ─────────────────────────────────────────────────────
 
