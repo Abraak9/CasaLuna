@@ -168,7 +168,7 @@ export default function EventPage() {
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount_id: string; label: string; type: string; value: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount_id: string; label: string; discount_amount: number } | null>(null);
 
   const [seatMap, setSeatMap] = useState<PublicSeatMap | null>(null);
   const [seatMapLoading, setSeatMapLoading] = useState(false);
@@ -263,12 +263,7 @@ export default function EventPage() {
   const subtotalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0)
     + bundleCart.reduce((sum, bc) => sum + bc.bundle.bundle_price, 0)
     + addonCart.reduce((sum, ac) => sum + ac.addon.price * ac.quantity, 0);
-  const promoDiscountAmount = appliedPromo
-    ? appliedPromo.type === 'percentage'
-      ? Math.round(subtotalPrice * (appliedPromo.value / 100) * 100) / 100
-      : Math.min(appliedPromo.value, subtotalPrice)
-    : 0;
-  const totalPrice = Math.max(0, subtotalPrice - promoDiscountAmount);
+  const totalPrice = Math.max(0, subtotalPrice - (appliedPromo?.discount_amount ?? 0));
   const cartCurrency: string =
     cart[0]?.ticket.currency ||
     bundleCart[0]?.bundle.currency ||
@@ -400,19 +395,13 @@ export default function EventPage() {
     if (!promoInput.trim()) return;
     setPromoLoading(true); setPromoError('');
     try {
-      // Collect all ticket type IDs in cart (individual + bundle items)
-      const allCartTicketTypeIds = [
-        ...cart.map(c => c.ticket.id),
-        ...bundleCart.flatMap(bc => bc.bundle.items.map(bi => bi.ticket_type_id)),
-      ];
       const res = await fetch('/api/discounts/validate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoInput.trim(), event_slug: slug, subtotal: subtotalPrice, cart_ticket_type_ids: allCartTicketTypeIds }),
+        body: JSON.stringify({ code: promoInput.trim(), event_slug: slug, subtotal: subtotalPrice }),
       });
       const data = await res.json();
       if (!res.ok) { setPromoError(data.error || 'Invalid code'); return; }
-      // Store type+value so discount recalculates reactively if cart changes
-      setAppliedPromo({ code: promoInput.trim().toUpperCase(), discount_id: data.discount_id, label: data.label, type: data.type, value: data.value });
+      setAppliedPromo({ code: promoInput.trim().toUpperCase(), discount_id: data.discount_id, label: data.label, discount_amount: data.discount_amount });
       setPromoInput('');
     } catch {
       setPromoError('Could not apply code, try again');
@@ -865,7 +854,7 @@ export default function EventPage() {
             {appliedPromo && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-muted)', marginTop: '4px' }}>
                 <span style={{ fontSize: '14px', color: 'var(--green)' }}>Discount ({appliedPromo.label})</span>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--green)' }}>−{formatPrice(promoDiscountAmount, cartCurrency)}</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--green)' }}>−{formatPrice(appliedPromo.discount_amount, cartCurrency)}</span>
               </div>
             )}
 

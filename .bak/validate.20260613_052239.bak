@@ -3,10 +3,10 @@ import { queryOne } from '@/lib/db';
 
 // POST /api/discounts/validate
 // Public — no auth required
-// Body: { code, event_slug, subtotal, cart_ticket_type_ids }
+// Body: { code, event_slug, subtotal, currency }
 export async function POST(req: NextRequest) {
   try {
-    const { code, event_slug, subtotal, cart_ticket_type_ids = [] } = await req.json();
+    const { code, event_slug, subtotal } = await req.json();
 
     if (!code || !event_slug || subtotal === undefined) {
       return NextResponse.json({ error: 'code, event_slug and subtotal are required' }, { status: 400 });
@@ -25,11 +25,9 @@ export async function POST(req: NextRequest) {
       scope: string; usage_limit: number | null; usage_count: number;
       valid_from: string | null; valid_until: string | null;
       status: string; event_id: string | null;
-      applies_to_ticket_type_ids: string[] | null;
     }>(
       `SELECT id, type, value, currency, scope, usage_limit, usage_count,
-              valid_from, valid_until, status, event_id,
-              applies_to_ticket_type_ids
+              valid_from, valid_until, status, event_id
        FROM discount_codes
        WHERE UPPER(code) = UPPER($1)`,
       [code]
@@ -57,22 +55,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This promo code has reached its usage limit' }, { status: 400 });
     }
 
-    // Ticket type restriction check
-    const restricted = discount.applies_to_ticket_type_ids;
-    if (restricted && restricted.length > 0) {
-      const cartIds: string[] = cart_ticket_type_ids;
-      const hasMatch = restricted.some((id: string) => cartIds.includes(id));
-      if (!hasMatch) {
-        return NextResponse.json({ error: 'This code is not valid for the tickets in your cart' }, { status: 400 });
-      }
-    }
-
     // Calculate discount amount
     const sub = Number(subtotal);
     let discountAmount = 0;
     if (discount.type === 'percentage') {
       discountAmount = Math.round(sub * (Number(discount.value) / 100) * 100) / 100;
     } else {
+      // fixed
       discountAmount = Math.min(Number(discount.value), sub);
     }
 

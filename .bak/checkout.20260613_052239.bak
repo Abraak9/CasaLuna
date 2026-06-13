@@ -222,10 +222,8 @@ export async function POST(req: NextRequest) {
         id: string; type: string; value: number; usage_limit: number | null;
         usage_count: number; valid_from: string | null; valid_until: string | null;
         status: string; event_id: string | null;
-        applies_to_ticket_type_ids: string[] | null;
       }>(
-        `SELECT id, type, value, usage_limit, usage_count, valid_from, valid_until,
-                status, event_id, applies_to_ticket_type_ids
+        `SELECT id, type, value, usage_limit, usage_count, valid_from, valid_until, status, event_id
          FROM discount_codes WHERE UPPER(code) = UPPER($1)`,
         [discount_code]
       );
@@ -245,18 +243,6 @@ export async function POST(req: NextRequest) {
       }
       if (dc.usage_limit !== null && dc.usage_count >= dc.usage_limit) {
         return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 });
-      }
-
-      // Ticket type restriction check
-      if (dc.applies_to_ticket_type_ids && dc.applies_to_ticket_type_ids.length > 0) {
-        const cartTicketTypeIds = [
-          ...items.map(i => i.ticket_type_id),
-          ...(bundle_items || []).flatMap(bi => bi.items.map(i => i.ticket_type_id)),
-        ];
-        const hasMatch = dc.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id));
-        if (!hasMatch) {
-          return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
-        }
       }
 
       discountId = dc.id;
