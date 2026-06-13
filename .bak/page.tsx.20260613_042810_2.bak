@@ -420,7 +420,7 @@ export default function EventPage() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <main style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: totalItems > 0 ? '164px' : '40px' }}>
+    <main style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: totalItems > 0 ? '116px' : '40px' }}>
 
       {/* ── Hero ── */}
       <div style={{ position: 'relative' }}>
