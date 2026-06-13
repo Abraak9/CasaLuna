@@ -168,7 +168,11 @@ export default function EventPage() {
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount_id: string; label: string; type: string; value: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string; discount_id: string | null; promoter_id: string | null;
+    label: string; type: string; value: number;
+  } | null>(null);
+  const [affiliateId, setAffiliateId] = useState<string | null>(null);
 
   const [seatMap, setSeatMap] = useState<PublicSeatMap | null>(null);
   const [seatMapLoading, setSeatMapLoading] = useState(false);
@@ -188,6 +192,20 @@ export default function EventPage() {
       })
       .catch(() => { setLoading(false); setError('Could not load event.'); });
   }, [slug]);
+
+  // ─── Affiliate tracking — read ?ref= param on mount ─────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (!ref) return;
+    fetch('/api/affiliates/track', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tracking_code: ref }),
+    })
+      .then(r => r.json())
+      .then(data => { if (data.affiliate_id) setAffiliateId(data.affiliate_id); })
+      .catch(() => { /* silently ignore */ });
+  }, []);
 
   // ─── Cart helpers ────────────────────────────────────────────────────────────
 
@@ -383,6 +401,7 @@ export default function EventPage() {
       };
       if (reservationIds.length) body.seat_reservation_ids = reservationIds;
       if (appliedPromo) body.discount_code = appliedPromo.code;
+      if (affiliateId) body.affiliate_id = affiliateId;
       const res = await fetch('/api/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

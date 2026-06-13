@@ -48,12 +48,13 @@ const CheckoutSchema = z.object({
   addons: z.array(AddonCheckoutSchema).optional().default([]),
   seat_reservation_ids: z.array(z.string().uuid()).optional(),
   discount_code: z.string().optional(),
+  affiliate_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { event_slug, email, items, bundle_items, addons, seat_reservation_ids, discount_code } = CheckoutSchema.parse(body);
+    const { event_slug, email, items, bundle_items, addons, seat_reservation_ids, discount_code, affiliate_id } = CheckoutSchema.parse(body);
 
     if (!items.length && !bundle_items?.length && !addons?.length) {
       return NextResponse.json({ error: 'No items in order' }, { status: 400 });
@@ -213,11 +214,18 @@ export async function POST(req: NextRequest) {
       validatedAddons.push({ addon, quantity: ao.quantity });
     }
 
-    // ── Validate discount code ──────────────────────────────────────────────────
+    // ── Validate promo code (discount code or promoter code) ───────────────────
     let discountId: string | null = null;
     let discountAmount = 0;
+    let promoterId: string | null = null;
+
+    const cartTicketTypeIds = [
+      ...items.map(i => i.ticket_type_id),
+      ...(bundle_items || []).flatMap(bi => bi.items.map(i => i.ticket_type_id)),
+    ];
 
     if (discount_code) {
+      // Try discount_codes first
       const dc = await queryOne<{
         id: string; type: string; value: number; usage_limit: number | null;
         usage_count: number; valid_from: string | null; valid_until: string | null;
@@ -230,41 +238,64 @@ export async function POST(req: NextRequest) {
         [discount_code]
       );
 
-      if (!dc || dc.status !== 'active') {
-        return NextResponse.json({ error: 'Invalid or inactive promo code' }, { status: 400 });
-      }
-      if (dc.event_id && dc.event_id !== event.id) {
-        return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
-      }
-      const now = new Date();
-      if (dc.valid_from && new Date(dc.valid_from) > now) {
-        return NextResponse.json({ error: 'Promo code not yet active' }, { status: 400 });
-      }
-      if (dc.valid_until && new Date(dc.valid_until) < now) {
-        return NextResponse.json({ error: 'Promo code has expired' }, { status: 400 });
-      }
-      if (dc.usage_limit !== null && dc.usage_count >= dc.usage_limit) {
-        return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 });
-      }
+      if (dc) {
+        if (dc.status !== 'active') return NextResponse.json({ error: 'Invalid or inactive promo code' }, { status: 400 });
+        if (dc.event_id && dc.event_id !== event.id) return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
+        const now = new Date();
+        if (dc.valid_from && new Date(dc.valid_from) > now) return NextResponse.json({ error: 'Promo code not yet active' }, { status: 400 });
+        if (dc.valid_until && new Date(dc.valid_until) < now) return NextResponse.json({ error: 'Promo code has expired' }, { status: 400 });
+        if (dc.usage_limit !== null && dc.usage_count >= dc.usage_limit) return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 });
 
-      // Ticket type restriction check
-      if (dc.applies_to_ticket_type_ids && dc.applies_to_ticket_type_ids.length > 0) {
-        const cartTicketTypeIds = [
-          ...items.map(i => i.ticket_type_id),
-          ...(bundle_items || []).flatMap(bi => bi.items.map(i => i.ticket_type_id)),
-        ];
-        const hasMatch = dc.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id));
-        if (!hasMatch) {
-          return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
+        if (dc.applies_to_ticket_type_ids?.length) {
+          if (!dc.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id))) {
+            return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
+          }
+        }
+
+        discountId = dc.id;
+        discountAmount = dc.type === 'percentage'
+          ? Math.round(totalAmount * (Number(dc.value) / 100) * 100) / 100
+          : Math.min(Number(dc.value), totalAmount);
+
+      } else {
+        // Try promoters.promo_code
+        const promo = await queryOne<{
+          id: string; status: string; event_id: string | null;
+          applies_to_ticket_type_ids: string[] | null;
+          discount_code_id: string | null;
+        }>(
+          `SELECT id, status, event_id, applies_to_ticket_type_ids, discount_code_id
+           FROM promoters WHERE UPPER(promo_code) = UPPER($1)`,
+          [discount_code]
+        );
+
+        if (!promo) return NextResponse.json({ error: 'Invalid promo code' }, { status: 400 });
+        if (promo.status !== 'active') return NextResponse.json({ error: 'This promo code is no longer active' }, { status: 400 });
+        if (promo.event_id && promo.event_id !== event.id) return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
+
+        if (promo.applies_to_ticket_type_ids?.length) {
+          if (!promo.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id))) {
+            return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
+          }
+        }
+
+        promoterId = promo.id;
+
+        // Apply linked discount if present
+        if (promo.discount_code_id) {
+          const linkedDc = await queryOne<{ id: string; type: string; value: number; status: string }>(
+            `SELECT id, type, value, status FROM discount_codes WHERE id = $1`,
+            [promo.discount_code_id]
+          );
+          if (linkedDc && linkedDc.status === 'active') {
+            discountId = linkedDc.id;
+            discountAmount = linkedDc.type === 'percentage'
+              ? Math.round(totalAmount * (Number(linkedDc.value) / 100) * 100) / 100
+              : Math.min(Number(linkedDc.value), totalAmount);
+          }
         }
       }
 
-      discountId = dc.id;
-      if (dc.type === 'percentage') {
-        discountAmount = Math.round(totalAmount * (Number(dc.value) / 100) * 100) / 100;
-      } else {
-        discountAmount = Math.min(Number(dc.value), totalAmount);
-      }
       totalAmount = Math.max(0, totalAmount - discountAmount);
     }
 
@@ -275,10 +306,13 @@ export async function POST(req: NextRequest) {
     try {
       await client.query('BEGIN');
 
+      // Derive currency from first line item for order record
+      const orderCurrency = (lineItems[0]?.price_data.currency || 'eur').toUpperCase();
+
       await client.query(
-        `INSERT INTO orders (id, event_id, email, status, total_amount, addons_total, discount_code_id, currency)
-         VALUES ($1, $2, $3, 'pending', $4, $5, $6, 'EUR')`,
-        [orderId, event.id, email, totalAmount, addonsTotal, discountId]
+        `INSERT INTO orders (id, event_id, email, status, total_amount, addons_total, discount_code_id, promoter_id, affiliate_id, currency)
+         VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, $9)`,
+        [orderId, event.id, email, totalAmount, addonsTotal, discountId, promoterId, affiliate_id ?? null, orderCurrency]
       );
 
       for (const item of items) {
@@ -396,12 +430,15 @@ export async function POST(req: NextRequest) {
       client.release();
     }
 
+    // Derive cart currency from first line item (must match Stripe coupon currency)
+    const cartCurrency = lineItems[0]?.price_data.currency || 'eur';
+
     // Create Stripe Coupon for discount (Stripe doesn't support negative line items)
     let stripeCouponId: string | undefined;
     if (discountAmount > 0) {
       const coupon = await stripe.coupons.create({
         amount_off: Math.round(discountAmount * 100),
-        currency: 'eur',
+        currency: cartCurrency,
         duration: 'once',
         name: `Promo: ${discount_code}`,
         max_redemptions: 1,

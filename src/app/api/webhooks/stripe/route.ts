@@ -32,6 +32,54 @@ export async function POST(req: NextRequest) {
       [session.payment_intent as string, orderId]
     );
 
+    // Fetch order for attribution
+    const paidOrder = await queryOne<{
+      total_amount: number; promoter_id: string | null; affiliate_id: string | null;
+    }>(
+      `SELECT total_amount, promoter_id, affiliate_id FROM orders WHERE id = $1`,
+      [orderId]
+    );
+
+    // Update promoter stats
+    if (paidOrder?.promoter_id) {
+      const promoter = await queryOne<{ commission_type: string; commission_value: number }>(
+        `SELECT commission_type, commission_value FROM promoters WHERE id = $1`,
+        [paidOrder.promoter_id]
+      );
+      if (promoter) {
+        const commission = promoter.commission_type === 'percentage'
+          ? Number(paidOrder.total_amount) * (Number(promoter.commission_value) / 100)
+          : Number(promoter.commission_value);
+        await query(
+          `UPDATE promoters SET
+             total_sales = total_sales + $1,
+             total_commission = total_commission + $2
+           WHERE id = $3`,
+          [paidOrder.total_amount, commission, paidOrder.promoter_id]
+        );
+      }
+    }
+
+    // Update affiliate stats
+    if (paidOrder?.affiliate_id) {
+      const affiliate = await queryOne<{ commission_type: string; commission_value: number }>(
+        `SELECT commission_type, commission_value FROM affiliates WHERE id = $1`,
+        [paidOrder.affiliate_id]
+      );
+      if (affiliate) {
+        const commission = affiliate.commission_type === 'percentage'
+          ? Number(paidOrder.total_amount) * (Number(affiliate.commission_value) / 100)
+          : Number(affiliate.commission_value);
+        await query(
+          `UPDATE affiliates SET
+             total_sales = total_sales + $1,
+             total_commission = total_commission + $2
+           WHERE id = $3`,
+          [paidOrder.total_amount, commission, paidOrder.affiliate_id]
+        );
+      }
+    }
+
     // Update stock counts
     const items = await query<{ ticket_type_id: string; quantity: number }>(
       `SELECT ticket_type_id, quantity FROM order_items WHERE order_id = $1`,
