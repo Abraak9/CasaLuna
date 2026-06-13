@@ -74,6 +74,10 @@ const LABEL: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSp
 const INPUT: React.CSSProperties = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', borderRadius: '8px', padding: '9px 12px', fontSize: '13px', outline: 'none' };
 const SELECT: React.CSSProperties = { ...INPUT, appearance: 'none' as const, cursor: 'pointer' };
 const GOLD_BTN: React.CSSProperties = { background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '13px', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '10px 18px', borderRadius: '10px', border: 'none', cursor: 'pointer' };
+const INLINE_BTN: React.CSSProperties = { background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em', textTransform: 'uppercase', padding: '7px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 };
+const CARD: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '14px 18px' };
+const EDIT_BTN: React.CSSProperties = { fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer' };
+const DEL_BTN: React.CSSProperties = { fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: 'pointer' };
 
 const curr = (c: string) => c === 'SEK' ? 'kr' : '€';
 const fmtPrice = (price: number, c: string) => c === 'SEK' ? `${price} kr` : `€${price}`;
@@ -346,7 +350,7 @@ export default function TicketConfigPage() {
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {gt.map(t => (
-                      <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div key={t.id} style={{ ...CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
                             <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t.name_en || t.name_es}</h3>
@@ -363,8 +367,8 @@ export default function TicketConfigPage() {
                           </p>
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => openEdit(t)} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer' }}>Edit</button>
-                          <button onClick={() => deleteTicket(t.id)} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', color: 'var(--red)', cursor: 'pointer' }}>Delete</button>
+                          <button onClick={() => openEdit(t)} style={EDIT_BTN}>Edit</button>
+                          <button onClick={() => deleteTicket(t.id)} style={DEL_BTN}>Delete</button>
                         </div>
                       </div>
                     ))}
@@ -561,10 +565,10 @@ export default function TicketConfigPage() {
 
       {/* ─── GROUPS VIEW ─── */}
       {view === 'groups' && (
-        <div style={{ maxWidth: '480px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ maxWidth: '680px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Folders help you organise ticket types on the event page</p>
-            {!showGroupForm && <button onClick={openNewGroup} style={GOLD_BTN}>+ New Group</button>}
+            {!showGroupForm && <button onClick={openNewGroup} style={INLINE_BTN}>+ New Group</button>}
           </div>
 
           {showGroupForm && (
@@ -590,15 +594,15 @@ export default function TicketConfigPage() {
             {groups.map(g => {
               const count = tickets.filter(t => t.group_id === g.id).length;
               return (
-                <div key={g.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '11px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '20px' }}>📁</span>
+                <div key={g.id} style={{ ...CARD, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '18px' }}>📁</span>
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{g.name}</p>
                     <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{count} ticket type{count !== 1 ? 's' : ''}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => openEditGroup(g)} style={{ fontSize: '12px', color: 'var(--gold)', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', padding: '5px 11px', borderRadius: '7px', cursor: 'pointer' }}>Edit</button>
-                    <button onClick={() => deleteGroup(g.id)} style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', padding: '5px 11px', borderRadius: '7px', cursor: 'pointer' }}>Delete</button>
+                    <button onClick={() => openEditGroup(g)} style={EDIT_BTN}>Edit</button>
+                    <button onClick={() => deleteGroup(g.id)} style={DEL_BTN}>Delete</button>
                   </div>
                 </div>
               );
@@ -609,10 +613,10 @@ export default function TicketConfigPage() {
 
       {/* ─── ADD-ONS VIEW ─── */}
       {view === 'addons' && (
-        <div style={{ maxWidth: '620px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ maxWidth: '680px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Optional extras buyers can add at checkout — meals, drinks, spa, early entry, etc.</p>
-            {!showAddonForm && <button onClick={openNewAddon} style={GOLD_BTN}>+ New Add-on</button>}
+            {!showAddonForm && <button onClick={openNewAddon} style={INLINE_BTN}>+ New Add-on</button>}
           </div>
 
           {showAddonForm && (
@@ -755,11 +759,11 @@ export default function TicketConfigPage() {
                   ? tickets.filter(t => a.restricted_to_ticket_type_ids.includes(t.id)).map(t => t.name_en)
                   : [];
                 return (
-                  <div key={a.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '13px', padding: '16px 20px' }}>
+                  <div key={a.id} style={CARD}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>{a.name_en}</span>
+                          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{a.name_en}</span>
                           <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: '999px', background: a.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: a.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
                             {a.visibility}
                           </span>
@@ -782,8 +786,8 @@ export default function TicketConfigPage() {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                        <button onClick={() => openEditAddon(a)} style={{ fontSize: '12px', color: 'var(--gold)', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => deleteAddon(a.id)} style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => openEditAddon(a)} style={EDIT_BTN}>Edit</button>
+                        <button onClick={() => deleteAddon(a.id)} style={DEL_BTN}>Delete</button>
                       </div>
                     </div>
                   </div>
@@ -796,10 +800,10 @@ export default function TicketConfigPage() {
 
       {/* ─── BUNDLES VIEW ─── */}
       {view === 'bundles' && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ maxWidth: '680px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Bundle multiple ticket types at a special combined price</p>
-            {!showBundleForm && <button onClick={openNewBundle} style={GOLD_BTN}>+ New Bundle</button>}
+            {!showBundleForm && <button onClick={openNewBundle} style={INLINE_BTN}>+ New Bundle</button>}
           </div>
 
           {showBundleForm && (
@@ -920,12 +924,12 @@ export default function TicketConfigPage() {
                 const retail = bundleRetailPrice(b);
                 const savings = retail - b.bundle_price;
                 return (
-                  <div key={b.id} style={{ background: 'var(--surface)', border: '1px solid var(--border-muted)', borderRadius: '13px', padding: '16px 20px' }}>
+                  <div key={b.id} style={CARD}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '16px' }}>📦</span>
-                          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>{b.name_en}</h3>
+                          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{b.name_en}</h3>
                           <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '999px', background: b.visibility === 'visible' ? 'rgba(92,184,138,0.12)' : 'rgba(139,139,154,0.12)', color: b.visibility === 'visible' ? 'var(--green)' : 'var(--text-muted)' }}>
                             {b.visibility}
                           </span>
@@ -951,8 +955,8 @@ export default function TicketConfigPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                        <button onClick={() => openEditBundle(b)} style={{ fontSize: '12px', color: 'var(--gold)', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => deleteBundle(b.id)} style={{ fontSize: '12px', color: 'var(--red)', background: 'rgba(224,92,92,0.08)', border: '1px solid rgba(224,92,92,0.2)', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => openEditBundle(b)} style={EDIT_BTN}>Edit</button>
+                        <button onClick={() => deleteBundle(b.id)} style={DEL_BTN}>Delete</button>
                       </div>
                     </div>
                   </div>
