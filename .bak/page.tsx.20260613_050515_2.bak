@@ -258,11 +258,6 @@ export default function EventPage() {
   const totalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0)
     + bundleCart.reduce((sum, bc) => sum + bc.bundle.bundle_price, 0)
     + addonCart.reduce((sum, ac) => sum + ac.addon.price * ac.quantity, 0);
-  const cartCurrency: string =
-    cart[0]?.ticket.currency ||
-    bundleCart[0]?.bundle.currency ||
-    addonCart[0]?.addon.currency ||
-    'EUR';
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0) + bundleCart.length;
   const needsSeats = cart.some(item => item.ticket.requires_seat_selection);
 
@@ -795,7 +790,7 @@ export default function EventPage() {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', paddingBottom: '16px' }}>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600, color: 'var(--text)' }}>Total</span>
-              <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700 }} className="cl-gold-text">{formatPrice(totalPrice, cartCurrency)}</span>
+              <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700 }} className="cl-gold-text">{formatPrice(totalPrice)}</span>
             </div>
             <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '14px' }}>
               <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Tickets will be sent to <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{email}</strong></p>
@@ -820,7 +815,7 @@ export default function EventPage() {
               {bundleCart.length > 0 && ` · ${bundleCart.length} bundle${bundleCart.length !== 1 ? 's' : ''}`}
               {addonCart.length > 0 && ` · ${addonCart.reduce((s, a) => s + a.quantity, 0)} extra${addonCart.reduce((s, a) => s + a.quantity, 0) !== 1 ? 's' : ''}`}
             </span>
-            <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">{formatPrice(totalPrice, cartCurrency)}</span>
+            <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">{formatPrice(totalPrice)}</span>
           </div>
 
           {step === 'browse' && (
@@ -863,7 +858,7 @@ export default function EventPage() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setStep(hasAddonStep ? 'addons' : 'attendees')} style={{ padding: '16px 20px', borderRadius: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
               <button onClick={handleCheckout} disabled={submitting} style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', background: submitting ? 'var(--surface-3)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: submitting ? 'var(--text-muted)' : '#09090f', fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                {submitting ? 'Redirecting to Stripe…' : `Pay ${formatPrice(totalPrice, cartCurrency)}`}
+                {submitting ? 'Redirecting to Stripe…' : `Pay ${formatPrice(totalPrice)}`}
               </button>
             </div>
           )}
