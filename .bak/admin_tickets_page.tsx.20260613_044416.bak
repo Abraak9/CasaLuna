@@ -527,12 +527,16 @@ export default function TicketConfigPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <div>
                         <label style={LABEL}>Attendees per ticket</label>
-                        <input type="number" min={1} max={999} value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Math.max(1, parseInt(e.target.value) || 1))} style={INPUT} />
+                        <select value={form.attendees_per_ticket} onChange={e => set('attendees_per_ticket', Number(e.target.value))} style={SELECT}>
+                          {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
                         <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>Use 2 for Couple Pass</p>
                       </div>
                       <div>
                         <label style={LABEL}>Units per order</label>
-                        <input type="number" min={1} max={999} value={form.units_per_order} onChange={e => set('units_per_order', Math.max(1, parseInt(e.target.value) || 1))} style={INPUT} />
+                        <select value={form.units_per_order} onChange={e => set('units_per_order', Number(e.target.value))} style={SELECT}>
+                          {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
                       </div>
                     </div>
                     <div>
