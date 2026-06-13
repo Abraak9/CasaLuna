@@ -105,13 +105,12 @@ export default async function HomePage() {
       {/* ── Hero ───────────────────────────────────────────── */}
       <section style={{
         position: 'relative',
-        minHeight: '60vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         textAlign: 'center',
-        padding: '80px 24px 64px',
+        padding: '48px 24px 40px',
         overflow: 'hidden',
       }}>
         {/* Radial glow */}
@@ -131,7 +130,7 @@ export default async function HomePage() {
             letterSpacing: '0.24em',
             textTransform: 'uppercase',
             color: 'var(--gold)',
-            marginBottom: '24px',
+            marginBottom: '16px',
           }}>
             Official Ticketing
           </p>
