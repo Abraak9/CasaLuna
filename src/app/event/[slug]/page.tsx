@@ -45,6 +45,18 @@ interface Bundle {
   items: BundleItem[];
 }
 
+interface Addon {
+  id: string; name_en: string; description_en: string | null;
+  price: number; currency: string;
+  stock_total: number | null; stock_sold: number;
+  max_per_order: number; scope: string;
+  show_at: string; // 'addons' | 'review'
+  generates_voucher: boolean;
+  restricted_to_ticket_type_ids: string[];
+}
+
+interface AddonCartItem { addon: Addon; quantity: number; }
+
 interface Event {
   id: string; slug: string; name_en: string; name_es: string;
   description_en: string; description_es: string;
@@ -98,12 +110,14 @@ export default function EventPage() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [addons, setAddons] = useState<Addon[]>([]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [bundleCart, setBundleCart] = useState<BundleCartItem[]>([]);
+  const [addonCart, setAddonCart] = useState<AddonCartItem[]>([]);
 
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState<'browse' | 'seats' | 'attendees' | 'review'>('browse');
+  const [step, setStep] = useState<'browse' | 'seats' | 'attendees' | 'addons' | 'review'>('browse');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -121,6 +135,7 @@ export default function EventPage() {
         setTicketTypes(data.ticketTypes || []);
         setGroups(data.groups || []);
         setBundles(data.bundles || []);
+        setAddons(data.addons || []);
         setLoading(false);
       })
       .catch(() => { setLoading(false); setError('Could not load event.'); });
@@ -168,10 +183,51 @@ export default function EventPage() {
   const getQuantity = (ticketId: string) => cart.find(c => c.ticket.id === ticketId)?.quantity ?? 0;
   const hasBundleInCart = (bundleId: string) => bundleCart.some(b => b.bundle.id === bundleId);
 
+  const getAddonQty = (addonId: string) => addonCart.find(a => a.addon.id === addonId)?.quantity ?? 0;
+
+  const addAddon = (addon: Addon, delta: number) => {
+    setAddonCart(prev => {
+      const ex = prev.find(a => a.addon.id === addon.id);
+      if (!ex) {
+        if (delta <= 0) return prev;
+        return [...prev, { addon, quantity: delta }];
+      }
+      const newQty = Math.max(0, Math.min(addon.max_per_order, ex.quantity + delta));
+      if (newQty === 0) return prev.filter(a => a.addon.id !== addon.id);
+      return prev.map(a => a.addon.id === addon.id ? { ...a, quantity: newQty } : a);
+    });
+  };
+
+  const setAddonQty = (addon: Addon, qty: number) => {
+    const clamped = Math.max(0, Math.min(addon.max_per_order, qty));
+    setAddonCart(prev => {
+      if (clamped === 0) return prev.filter(a => a.addon.id !== addon.id);
+      const ex = prev.find(a => a.addon.id === addon.id);
+      if (!ex) return [...prev, { addon, quantity: clamped }];
+      return prev.map(a => a.addon.id === addon.id ? { ...a, quantity: clamped } : a);
+    });
+  };
+
+  // Total attendee count for per_attendee default qty
+  const totalAttendees = cart.reduce((s, c) => s + c.attendees.length, 0)
+    + bundleCart.reduce((s, bc) => s + bc.bundle.items.reduce((ss, i) => ss + i.quantity, 0), 0);
+
   const totalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0)
-    + bundleCart.reduce((sum, bc) => sum + bc.bundle.bundle_price, 0);
+    + bundleCart.reduce((sum, bc) => sum + bc.bundle.bundle_price, 0)
+    + addonCart.reduce((sum, ac) => sum + ac.addon.price * ac.quantity, 0);
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0) + bundleCart.length;
   const needsSeats = cart.some(item => item.ticket.requires_seat_selection);
+
+  // Addons that qualify given current cart ticket type IDs
+  const cartTicketTypeIds = cart.map(c => c.ticket.id);
+  const qualifiedAddons = addons.filter(a => {
+    if (a.stock_total !== null && (a.stock_total - a.stock_sold) <= 0) return false;
+    if (!a.restricted_to_ticket_type_ids?.length) return true;
+    return a.restricted_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id));
+  });
+  const addonStepAddons = qualifiedAddons.filter(a => a.show_at === 'addons');
+  const reviewRailAddons = qualifiedAddons.filter(a => a.show_at === 'review');
+  const hasAddonStep = addonStepAddons.length > 0;
   const seatTickets = cart.filter(item => item.ticket.requires_seat_selection).reduce((sum, item) => sum + item.quantity, 0);
 
   const updateAttendee = (cartIdx: number, attIdx: number, field: keyof AttendeeForm, value: string) => {
@@ -206,6 +262,30 @@ export default function EventPage() {
     else setStep('attendees');
   };
 
+  const handleContinueFromAttendees = () => {
+    if (hasAddonStep) {
+      // Auto-set per_attendee addons qty to total attendee count
+      setAddonCart(prev => {
+        const next = [...prev];
+        for (const addon of addonStepAddons) {
+          if (addon.scope === 'per_attendee') {
+            const idx = next.findIndex(a => a.addon.id === addon.id);
+            const defaultQty = Math.min(totalAttendees || 1, addon.max_per_order);
+            if (idx >= 0) {
+              // already in cart — leave user's qty
+            } else if (defaultQty > 0) {
+              next.push({ addon, quantity: defaultQty });
+            }
+          }
+        }
+        return next;
+      });
+      setStep('addons');
+    } else {
+      setStep('review');
+    }
+  };
+
   const handleConfirmSeats = async () => {
     if (selectedSeats.length < seatTickets) {
       setError(`Please select ${seatTickets} spot${seatTickets !== 1 ? 's' : ''} before continuing.`);
@@ -232,6 +312,7 @@ export default function EventPage() {
       const body: Record<string, unknown> = {
         event_slug: slug, email,
         items: cart.map(c => ({ ticket_type_id: c.ticket.id, quantity: c.quantity, attendees: c.attendees })),
+        addons: addonCart.map(ac => ({ addon_id: ac.addon.id, quantity: ac.quantity })),
         bundle_items: bundleCart.map(bc => ({
           bundle_id: bc.bundle.id,
           items: bc.bundle.items.map(bi => ({
@@ -382,8 +463,12 @@ export default function EventPage() {
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', marginBottom: '32px' }}>
           {(needsSeats
-            ? [{ key: 'browse', label: 'Tickets' }, { key: 'seats', label: 'Seats' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
-            : [{ key: 'browse', label: 'Tickets' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }]
+            ? (hasAddonStep
+                ? [{ key: 'browse', label: 'Tickets' }, { key: 'seats', label: 'Seats' }, { key: 'attendees', label: 'Details' }, { key: 'addons', label: 'Extras' }, { key: 'review', label: 'Review' }]
+                : [{ key: 'browse', label: 'Tickets' }, { key: 'seats', label: 'Seats' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }])
+            : (hasAddonStep
+                ? [{ key: 'browse', label: 'Tickets' }, { key: 'attendees', label: 'Details' }, { key: 'addons', label: 'Extras' }, { key: 'review', label: 'Review' }]
+                : [{ key: 'browse', label: 'Tickets' }, { key: 'attendees', label: 'Details' }, { key: 'review', label: 'Review' }])
           ).map(({ key, label }, i, arr) => {
             const isActive = step === key;
             const isDone = arr.map(s => s.key).indexOf(step) > i;
@@ -573,6 +658,71 @@ export default function EventPage() {
         </div>
       )}
 
+      {/* ── Add-ons ── */}
+      {step === 'addons' && (
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>Enhance your night ✦</h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Optional extras — add what you'd like, or skip</p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+            {addonStepAddons.map(addon => {
+              const qty = getAddonQty(addon.id);
+              const available = addon.stock_total !== null ? addon.stock_total - addon.stock_sold : Infinity;
+              const canAdd = qty < addon.max_per_order && qty < available;
+              return (
+                <div key={addon.id} style={{ background: 'var(--surface)', border: `1px solid ${qty > 0 ? 'var(--border)' : 'var(--border-muted)'}`, borderRadius: '14px', padding: '16px 20px', transition: 'border-color 0.2s' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>{addon.name_en}</h3>
+                      {addon.description_en && <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '6px', lineHeight: 1.5 }}>{addon.description_en}</p>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">
+                          {formatPrice(addon.price, addon.currency)}
+                          {addon.scope === 'per_attendee' && <span style={{ fontSize: '13px', fontWeight: 400, color: 'var(--text-dim)' }}> / person</span>}
+                        </span>
+                        {addon.generates_voucher && <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: '6px', background: 'rgba(138,180,232,0.12)', color: '#8ab4e8' }}>QR voucher</span>}
+                        {addon.stock_total !== null && available <= 10 && <span style={{ fontSize: '11px', color: 'var(--amber)' }}>Only {available} left</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                      {qty > 0 && (
+                        <>
+                          <button onClick={() => addAddon(addon, -1)} style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gold)', minWidth: '20px', textAlign: 'center' }}>{qty}</span>
+                        </>
+                      )}
+                      <button onClick={() => addAddon(addon, 1)} disabled={!canAdd} style={{ width: '34px', height: '34px', borderRadius: '50%', background: canAdd ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', border: 'none', color: canAdd ? '#09090f' : 'var(--text-dim)', cursor: canAdd ? 'pointer' : 'not-allowed', fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Addon cart summary */}
+          {addonCart.filter(ac => addonStepAddons.some(a => a.id === ac.addon.id)).length > 0 && (
+            <div style={{ background: 'rgba(201,168,92,0.06)', border: '1px solid rgba(201,168,92,0.15)', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '8px' }}>Added extras</p>
+              {addonCart.filter(ac => addonStepAddons.some(a => a.id === ac.addon.id)).map(ac => (
+                <div key={ac.addon.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '3px 0' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{ac.addon.name_en} × {ac.quantity}</span>
+                  <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{formatPrice(ac.addon.price * ac.quantity, ac.addon.currency)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '100%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border), transparent)' }} />
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', textAlign: 'center' }}>
+              Add extras above, then tap <span style={{ color: 'var(--gold)', fontWeight: 600 }}>Review Order →</span> — or skip below
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Review ── */}
       {step === 'review' && (
         <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px 120px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -599,6 +749,43 @@ export default function EventPage() {
                 </div>
               );
             })}
+            {addonCart.map(ac => (
+              <div key={ac.addon.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-muted)' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text)' }}>✨ {ac.addon.name_en} × {ac.quantity}</span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gold)' }}>{formatPrice(ac.addon.price * ac.quantity, ac.addon.currency)}</span>
+              </div>
+            ))}
+
+            {/* Review-rail add-ons */}
+            {reviewRailAddons.length > 0 && (
+              <div style={{ paddingTop: '8px' }}>
+                <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--green)', marginBottom: '8px' }}>Also available</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {reviewRailAddons.map(addon => {
+                    const qty = getAddonQty(addon.id);
+                    const available = addon.stock_total !== null ? addon.stock_total - addon.stock_sold : Infinity;
+                    const canAdd = qty < addon.max_per_order && qty < available;
+                    return (
+                      <div key={addon.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', borderRadius: '10px', padding: '10px 14px', gap: '12px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{addon.name_en}</span>
+                          <span style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 700, marginLeft: '10px' }}>{formatPrice(addon.price, addon.currency)}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                          {qty > 0 && (
+                            <>
+                              <button onClick={() => addAddon(addon, -1)} style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border-muted)', color: 'var(--text)', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--gold)', minWidth: '16px', textAlign: 'center' }}>{qty}</span>
+                            </>
+                          )}
+                          <button onClick={() => addAddon(addon, 1)} disabled={!canAdd} style={{ width: '28px', height: '28px', borderRadius: '50%', background: canAdd ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface)', border: 'none', color: canAdd ? '#09090f' : 'var(--text-dim)', cursor: canAdd ? 'pointer' : 'not-allowed', fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', paddingBottom: '16px' }}>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600, color: 'var(--text)' }}>Total</span>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700 }} className="cl-gold-text">{formatPrice(totalPrice)}</span>
@@ -621,8 +808,9 @@ export default function EventPage() {
           {error && (step === 'browse' || step === 'seats') && <p style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '8px' }}>{error}</p>}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              {totalItems} item{totalItems !== 1 ? 's' : ''}
-              {bundleCart.length > 0 && ` (incl. ${bundleCart.length} bundle${bundleCart.length !== 1 ? 's' : ''})`}
+              {totalItems} ticket{totalItems !== 1 ? 's' : ''}
+              {bundleCart.length > 0 && ` · ${bundleCart.length} bundle${bundleCart.length !== 1 ? 's' : ''}`}
+              {addonCart.length > 0 && ` · ${addonCart.reduce((s, a) => s + a.quantity, 0)} extra${addonCart.reduce((s, a) => s + a.quantity, 0) !== 1 ? 's' : ''}`}
             </span>
             <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600 }} className="cl-gold-text">{formatPrice(totalPrice)}</span>
           </div>
@@ -643,14 +831,29 @@ export default function EventPage() {
           {step === 'attendees' && (
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setStep('browse')} style={{ padding: '16px 20px', borderRadius: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
-              <button onClick={() => setStep('review')} style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                Review Order →
+              <button onClick={handleContinueFromAttendees} style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                {hasAddonStep ? 'Choose Extras →' : 'Review Order →'}
               </button>
+            </div>
+          )}
+          {step === 'addons' && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setStep('attendees')} style={{ padding: '16px 20px', borderRadius: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <button onClick={() => setStep('review')} style={{ width: '100%', padding: '16px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: '#09090f', fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Review Order →
+                </button>
+                {addonCart.filter(ac => addonStepAddons.some(a => a.id === ac.addon.id)).length === 0 && (
+                  <button onClick={() => setStep('review')} style={{ width: '100%', padding: '8px', borderRadius: '10px', border: 'none', background: 'transparent', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                    Skip, no extras needed
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {step === 'review' && (
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setStep('attendees')} style={{ padding: '16px 20px', borderRadius: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
+              <button onClick={() => setStep(hasAddonStep ? 'addons' : 'attendees')} style={{ padding: '16px 20px', borderRadius: '12px', background: 'var(--surface-2)', border: '1px solid var(--border-muted)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
               <button onClick={handleCheckout} disabled={submitting} style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', background: submitting ? 'var(--surface-3)' : 'linear-gradient(135deg, #c9a85c, #e8d5a0)', color: submitting ? 'var(--text-muted)' : '#09090f', fontWeight: 700, fontSize: '14px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: submitting ? 'not-allowed' : 'pointer' }}>
                 {submitting ? 'Redirecting to Stripe…' : `Pay ${formatPrice(totalPrice)}`}
               </button>
