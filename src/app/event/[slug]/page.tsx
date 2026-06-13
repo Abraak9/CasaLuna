@@ -295,8 +295,11 @@ export default function EventPage() {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0) + bundleCart.length;
   const needsSeats = cart.some(item => item.ticket.requires_seat_selection);
 
-  // Addons that qualify given current cart ticket type IDs
-  const cartTicketTypeIds = cart.map(c => c.ticket.id);
+  // Addons that qualify given current cart ticket type IDs (tickets + bundle contents)
+  const cartTicketTypeIds = [
+    ...cart.map(c => c.ticket.id),
+    ...bundleCart.flatMap(bc => bc.bundle.items.map((bi: { ticket_type_id: string }) => bi.ticket_type_id)),
+  ];
   const qualifiedAddons = addons.filter(a => {
     if (a.stock_total !== null && (a.stock_total - a.stock_sold) <= 0) return false;
     if (!a.restricted_to_ticket_type_ids?.length) return true;
