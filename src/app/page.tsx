@@ -246,7 +246,7 @@ export default async function HomePage() {
                     className="event-row"
                   >
                     {/* Date block */}
-                    <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                    <div className="event-row-date" style={{ textAlign: 'center', flexShrink: 0 }}>
                       <p style={{
                         fontFamily: 'var(--font-cormorant)',
                         fontSize: '42px',
@@ -268,7 +268,7 @@ export default async function HomePage() {
                     </div>
 
                     {/* Event info */}
-                    <div style={{ minWidth: 0 }}>
+                    <div className="event-row-info" style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
                         <h3 style={{
                           fontFamily: 'var(--font-cormorant)',
@@ -292,7 +292,7 @@ export default async function HomePage() {
                     </div>
 
                     {/* CTA */}
-                    <div style={{
+                    <div className="event-row-cta" style={{
                       flexShrink: 0,
                       display: 'flex',
                       alignItems: 'center',
@@ -304,7 +304,7 @@ export default async function HomePage() {
                       color: 'var(--gold)',
                     }}>
                       {event.cover_image_url && (
-                        <div style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                        <div className="event-row-cta-img" style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
                           <Image
                             src={event.cover_image_url}
                             alt=""
