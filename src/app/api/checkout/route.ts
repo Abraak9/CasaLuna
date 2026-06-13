@@ -47,12 +47,13 @@ const CheckoutSchema = z.object({
   bundle_items: z.array(BundleCheckoutSchema).optional().default([]),
   addons: z.array(AddonCheckoutSchema).optional().default([]),
   seat_reservation_ids: z.array(z.string().uuid()).optional(),
+  discount_code: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { event_slug, email, items, bundle_items, addons, seat_reservation_ids } = CheckoutSchema.parse(body);
+    const { event_slug, email, items, bundle_items, addons, seat_reservation_ids, discount_code } = CheckoutSchema.parse(body);
 
     if (!items.length && !bundle_items?.length && !addons?.length) {
       return NextResponse.json({ error: 'No items in order' }, { status: 400 });
@@ -212,6 +213,47 @@ export async function POST(req: NextRequest) {
       validatedAddons.push({ addon, quantity: ao.quantity });
     }
 
+    // ── Validate discount code ──────────────────────────────────────────────────
+    let discountId: string | null = null;
+    let discountAmount = 0;
+
+    if (discount_code) {
+      const dc = await queryOne<{
+        id: string; type: string; value: number; usage_limit: number | null;
+        usage_count: number; valid_from: string | null; valid_until: string | null;
+        status: string; event_id: string | null;
+      }>(
+        `SELECT id, type, value, usage_limit, usage_count, valid_from, valid_until, status, event_id
+         FROM discount_codes WHERE UPPER(code) = UPPER($1)`,
+        [discount_code]
+      );
+
+      if (!dc || dc.status !== 'active') {
+        return NextResponse.json({ error: 'Invalid or inactive promo code' }, { status: 400 });
+      }
+      if (dc.event_id && dc.event_id !== event.id) {
+        return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
+      }
+      const now = new Date();
+      if (dc.valid_from && new Date(dc.valid_from) > now) {
+        return NextResponse.json({ error: 'Promo code not yet active' }, { status: 400 });
+      }
+      if (dc.valid_until && new Date(dc.valid_until) < now) {
+        return NextResponse.json({ error: 'Promo code has expired' }, { status: 400 });
+      }
+      if (dc.usage_limit !== null && dc.usage_count >= dc.usage_limit) {
+        return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 });
+      }
+
+      discountId = dc.id;
+      if (dc.type === 'percentage') {
+        discountAmount = Math.round(totalAmount * (Number(dc.value) / 100) * 100) / 100;
+      } else {
+        discountAmount = Math.min(Number(dc.value), totalAmount);
+      }
+      totalAmount = Math.max(0, totalAmount - discountAmount);
+    }
+
     // ── Create order in DB ──────────────────────────────────────────────────────
     const orderId = uuidv4();
     const client = await pool.connect();
@@ -220,9 +262,9 @@ export async function POST(req: NextRequest) {
       await client.query('BEGIN');
 
       await client.query(
-        `INSERT INTO orders (id, event_id, email, status, total_amount, addons_total, currency)
-         VALUES ($1, $2, $3, 'pending', $4, $5, 'EUR')`,
-        [orderId, event.id, email, totalAmount, addonsTotal]
+        `INSERT INTO orders (id, event_id, email, status, total_amount, addons_total, discount_code_id, currency)
+         VALUES ($1, $2, $3, 'pending', $4, $5, $6, 'EUR')`,
+        [orderId, event.id, email, totalAmount, addonsTotal, discountId]
       );
 
       for (const item of items) {
@@ -324,12 +366,33 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Increment discount code usage
+      if (discountId) {
+        await client.query(
+          `UPDATE discount_codes SET usage_count = usage_count + 1 WHERE id = $1`,
+          [discountId]
+        );
+      }
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
+    }
+
+    // Create Stripe Coupon for discount (Stripe doesn't support negative line items)
+    let stripeCouponId: string | undefined;
+    if (discountAmount > 0) {
+      const coupon = await stripe.coupons.create({
+        amount_off: Math.round(discountAmount * 100),
+        currency: 'eur',
+        duration: 'once',
+        name: `Promo: ${discount_code}`,
+        max_redemptions: 1,
+      });
+      stripeCouponId = coupon.id;
     }
 
     // Create Stripe Checkout Session
@@ -341,6 +404,7 @@ export async function POST(req: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/order/${orderId}/success`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/event/${event_slug}`,
       metadata: { order_id: orderId },
+      ...(stripeCouponId ? { discounts: [{ coupon: stripeCouponId }] } : {}),
     });
 
     await query(

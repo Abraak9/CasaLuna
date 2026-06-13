@@ -165,11 +165,6 @@ export default function EventPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const [promoInput, setPromoInput] = useState('');
-  const [promoLoading, setPromoLoading] = useState(false);
-  const [promoError, setPromoError] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount_id: string; label: string; discount_amount: number } | null>(null);
-
   const [seatMap, setSeatMap] = useState<PublicSeatMap | null>(null);
   const [seatMapLoading, setSeatMapLoading] = useState(false);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
@@ -260,10 +255,9 @@ export default function EventPage() {
   const totalAttendees = cart.reduce((s, c) => s + c.attendees.length, 0)
     + bundleCart.reduce((s, bc) => s + bc.bundle.items.reduce((ss, i) => ss + i.quantity, 0), 0);
 
-  const subtotalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0)
+  const totalPrice = cart.reduce((sum, item) => sum + getCurrentPrice(item.ticket) * item.quantity, 0)
     + bundleCart.reduce((sum, bc) => sum + bc.bundle.bundle_price, 0)
     + addonCart.reduce((sum, ac) => sum + ac.addon.price * ac.quantity, 0);
-  const totalPrice = Math.max(0, subtotalPrice - (appliedPromo?.discount_amount ?? 0));
   const cartCurrency: string =
     cart[0]?.ticket.currency ||
     bundleCart[0]?.bundle.currency ||
@@ -377,7 +371,6 @@ export default function EventPage() {
         })),
       };
       if (reservationIds.length) body.seat_reservation_ids = reservationIds;
-      if (appliedPromo) body.discount_code = appliedPromo.code;
       const res = await fetch('/api/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -388,25 +381,6 @@ export default function EventPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setSubmitting(false);
-    }
-  };
-
-  const handleApplyPromo = async () => {
-    if (!promoInput.trim()) return;
-    setPromoLoading(true); setPromoError('');
-    try {
-      const res = await fetch('/api/discounts/validate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoInput.trim(), event_slug: slug, subtotal: subtotalPrice }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setPromoError(data.error || 'Invalid code'); return; }
-      setAppliedPromo({ code: promoInput.trim().toUpperCase(), discount_id: data.discount_id, label: data.label, discount_amount: data.discount_amount });
-      setPromoInput('');
-    } catch {
-      setPromoError('Could not apply code, try again');
-    } finally {
-      setPromoLoading(false);
     }
   };
 
@@ -819,46 +793,7 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {/* ── Promo code ── */}
-            <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '14px', marginTop: '4px' }}>
-              {!appliedPromo ? (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    value={promoInput}
-                    onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && handleApplyPromo()}
-                    placeholder="Promo code"
-                    style={{ flex: 1, background: 'var(--surface-2)', border: `1px solid ${promoError ? 'var(--red)' : 'var(--border-muted)'}`, color: 'var(--text)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', letterSpacing: '0.08em', outline: 'none' }}
-                  />
-                  <button
-                    onClick={handleApplyPromo}
-                    disabled={promoLoading || !promoInput.trim()}
-                    style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: promoInput.trim() ? 'linear-gradient(135deg, #c9a85c, #e8d5a0)' : 'var(--surface-2)', color: promoInput.trim() ? '#09090f' : 'var(--text-dim)', fontWeight: 700, fontSize: '13px', cursor: promoInput.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}
-                  >
-                    {promoLoading ? '…' : 'Apply'}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(100,200,120,0.07)', border: '1px solid rgba(100,200,120,0.2)', borderRadius: '10px', padding: '10px 14px' }}>
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--green)', letterSpacing: '0.06em' }}>✓ {appliedPromo.code}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px' }}>{appliedPromo.label}</span>
-                  </div>
-                  <button onClick={() => { setAppliedPromo(null); setPromoError(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 4px' }}>×</button>
-                </div>
-              )}
-              {promoError && <p style={{ fontSize: '12px', color: 'var(--red)', marginTop: '6px' }}>{promoError}</p>}
-            </div>
-
-            {/* Discount line */}
-            {appliedPromo && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-muted)', marginTop: '4px' }}>
-                <span style={{ fontSize: '14px', color: 'var(--green)' }}>Discount ({appliedPromo.label})</span>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--green)' }}>−{formatPrice(appliedPromo.discount_amount, cartCurrency)}</span>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', paddingBottom: '16px', borderTop: '1px solid var(--border-muted)', marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', paddingBottom: '16px' }}>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '20px', fontWeight: 600, color: 'var(--text)' }}>Total</span>
               <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '24px', fontWeight: 700 }} className="cl-gold-text">{formatPrice(totalPrice, cartCurrency)}</span>
             </div>
