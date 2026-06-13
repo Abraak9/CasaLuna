@@ -1,0 +1,469 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { queryOne, query } from '@/lib/db';
+import pool from '@/lib/db';
+import { getCurrentPrice } from '@/lib/pricing';
+import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
+
+const AttendeeSchema = z.object({
+  first_name: z.string().optional().default(''),
+  last_name: z.string().optional().default(''),
+  email: z.union([z.string().email(), z.literal(''), z.undefined()]).optional(),
+  phone: z.string().optional().default(''),
+  gender: z.string().optional().default(''),
+  role: z.string().optional().default(''),
+  passport_number: z.string().optional().default(''),
+  residence_country: z.string().optional().default(''),
+  residence_city: z.string().optional().default(''),
+});
+
+const OrderItemSchema = z.object({
+  ticket_type_id: z.string().uuid(),
+  quantity: z.number().int().min(1).max(10),
+  attendees: z.array(AttendeeSchema),
+});
+
+const BundleOrderItemSchema = z.object({
+  ticket_type_id: z.string().uuid(),
+  quantity: z.number().int().min(1),
+  attendees: z.array(AttendeeSchema),
+});
+
+const BundleCheckoutSchema = z.object({
+  bundle_id: z.string().uuid(),
+  items: z.array(BundleOrderItemSchema),
+});
+
+const AddonCheckoutSchema = z.object({
+  addon_id: z.string().uuid(),
+  quantity: z.number().int().min(1).max(100),
+});
+
+const CheckoutSchema = z.object({
+  event_slug: z.string(),
+  email: z.string().email(),
+  items: z.array(OrderItemSchema).default([]),
+  bundle_items: z.array(BundleCheckoutSchema).optional().default([]),
+  addons: z.array(AddonCheckoutSchema).optional().default([]),
+  seat_reservation_ids: z.array(z.string().uuid()).optional(),
+  discount_code: z.string().optional(),
+  affiliate_id: z.string().uuid().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { event_slug, email, items, bundle_items, addons, seat_reservation_ids, discount_code, affiliate_id } = CheckoutSchema.parse(body);
+
+    if (!items.length && !bundle_items?.length && !addons?.length) {
+      return NextResponse.json({ error: 'No items in order' }, { status: 400 });
+    }
+
+    // Verify event exists
+    const event = await queryOne<{ id: string; name_es: string; name_en: string }>(
+      `SELECT id, name_es, name_en FROM events WHERE slug = $1 AND status = 'published'`,
+      [event_slug]
+    );
+    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+    // Validate ticket types and build line items
+    const lineItems: { price_data: { currency: string; product_data: { name: string; description: string }; unit_amount: number }; quantity: number }[] = [];
+    let totalAmount = 0;
+    let addonsTotal = 0;
+
+    for (const item of items) {
+      const tt = await queryOne<{
+        id: string; name_es: string; name_en: string;
+        stock_total: number; stock_sold: number;
+        price_scaling: 'fixed' | 'by_date' | 'by_stock';
+        base_price: number; event_id: string; currency: string;
+      }>(
+        `SELECT tt.*, json_agg(pt ORDER BY pt.sort_order) FILTER (WHERE pt.id IS NOT NULL) AS price_tiers
+         FROM ticket_types tt
+         LEFT JOIN price_tiers pt ON pt.ticket_type_id = tt.id
+         WHERE tt.id = $1 AND tt.event_id = $2
+         GROUP BY tt.id`,
+        [item.ticket_type_id, event.id]
+      );
+
+      if (!tt) return NextResponse.json({ error: `Ticket type not found` }, { status: 400 });
+
+      const available = tt.stock_total - tt.stock_sold;
+      if (available < item.quantity) {
+        return NextResponse.json({ error: `Not enough tickets available for "${tt.name_en || tt.name_es}"` }, { status: 400 });
+      }
+
+      const price = getCurrentPrice(tt as unknown as Parameters<typeof getCurrentPrice>[0]);
+      const subtotal = price * item.quantity;
+      totalAmount += subtotal;
+
+      lineItems.push({
+        price_data: {
+          currency: (tt.currency || 'EUR').toLowerCase(),
+          product_data: {
+            name: tt.name_en || tt.name_es,
+            description: `${event.name_en || event.name_es}`,
+          },
+          unit_amount: Math.round(price * 100),
+        },
+        quantity: item.quantity,
+      });
+    }
+
+    // Validate and process bundle items
+    const bundleOrderItems: { ticket_type_id: string; quantity: number; unit_price: number; attendees: (typeof bundle_items)[0]['items'][0]['attendees'] }[] = [];
+
+    for (const bi of (bundle_items || [])) {
+      const bundle = await queryOne<{ id: string; name_en: string; bundle_price: number; currency: string }>(
+        `SELECT id, name_en, bundle_price, currency FROM ticket_bundles WHERE id = $1 AND event_id = $2`,
+        [bi.bundle_id, event.id]
+      );
+      if (!bundle) return NextResponse.json({ error: 'Bundle not found' }, { status: 400 });
+
+      let retailTotal = 0;
+      for (const bitem of bi.items) {
+        const tt = await queryOne<{ stock_total: number; stock_sold: number; name_en: string; base_price: number }>(
+          `SELECT stock_total, stock_sold, name_en, base_price FROM ticket_types WHERE id = $1 AND event_id = $2`,
+          [bitem.ticket_type_id, event.id]
+        );
+        if (!tt) return NextResponse.json({ error: 'Bundle ticket type not found' }, { status: 400 });
+        const avail = tt.stock_total - tt.stock_sold;
+        if (avail < bitem.quantity) return NextResponse.json({ error: `Not enough tickets: ${tt.name_en}` }, { status: 400 });
+        retailTotal += Number(tt.base_price) * bitem.quantity;
+      }
+
+      const bundlePrice = Number(bundle.bundle_price);
+      totalAmount += bundlePrice;
+      lineItems.push({
+        price_data: {
+          currency: (bundle.currency || 'EUR').toLowerCase(),
+          product_data: {
+            name: bundle.name_en,
+            description: `Bundle – ${event.name_en || event.name_es}`,
+          },
+          unit_amount: Math.round(bundlePrice * 100),
+        },
+        quantity: 1,
+      });
+
+      for (const bitem of bi.items) {
+        const tt = await queryOne<{ base_price: number }>(
+          `SELECT base_price FROM ticket_types WHERE id = $1`, [bitem.ticket_type_id]
+        );
+        const itemRetail = Number(tt!.base_price) * bitem.quantity;
+        const proportion = retailTotal > 0 ? itemRetail / retailTotal : 1 / bi.items.length;
+        const unitPrice = retailTotal > 0
+          ? Math.round((bundlePrice * proportion) / bitem.quantity * 100) / 100
+          : bundlePrice / bi.items.reduce((s, i) => s + i.quantity, 0);
+
+        bundleOrderItems.push({
+          ticket_type_id: bitem.ticket_type_id,
+          quantity: bitem.quantity,
+          unit_price: unitPrice,
+          attendees: bitem.attendees,
+        });
+      }
+    }
+
+    // ── Validate add-ons ────────────────────────────────────────────────────────
+    type AddonRow = {
+      id: string; name_en: string; price: number; currency: string;
+      stock_total: number | null; stock_sold: number;
+      max_per_order: number; generates_voucher: boolean;
+    };
+    const validatedAddons: { addon: AddonRow; quantity: number }[] = [];
+
+    for (const ao of (addons || [])) {
+      const addon = await queryOne<AddonRow>(
+        `SELECT id, name_en, price, currency, stock_total, stock_sold, max_per_order, generates_voucher
+         FROM event_addons WHERE id = $1 AND event_id = $2 AND visibility = 'visible'`,
+        [ao.addon_id, event.id]
+      );
+      if (!addon) return NextResponse.json({ error: 'Add-on not found' }, { status: 400 });
+
+      // Stock check (only if limited)
+      if (addon.stock_total !== null) {
+        const available = addon.stock_total - addon.stock_sold;
+        if (available < ao.quantity) {
+          return NextResponse.json({ error: `Not enough stock for "${addon.name_en}"` }, { status: 400 });
+        }
+      }
+
+      // Max per order check
+      if (ao.quantity > addon.max_per_order) {
+        return NextResponse.json({ error: `Maximum ${addon.max_per_order} of "${addon.name_en}" per order` }, { status: 400 });
+      }
+
+      const addonSubtotal = Number(addon.price) * ao.quantity;
+      addonsTotal += addonSubtotal;
+      totalAmount += addonSubtotal;
+
+      lineItems.push({
+        price_data: {
+          currency: (addon.currency || 'EUR').toLowerCase(),
+          product_data: {
+            name: addon.name_en,
+            description: `Add-on – ${event.name_en || event.name_es}`,
+          },
+          unit_amount: Math.round(Number(addon.price) * 100),
+        },
+        quantity: ao.quantity,
+      });
+
+      validatedAddons.push({ addon, quantity: ao.quantity });
+    }
+
+    // ── Validate promo code (discount code or promoter code) ───────────────────
+    let discountId: string | null = null;
+    let discountAmount = 0;
+    let promoterId: string | null = null;
+
+    const cartTicketTypeIds = [
+      ...items.map(i => i.ticket_type_id),
+      ...(bundle_items || []).flatMap(bi => bi.items.map(i => i.ticket_type_id)),
+    ];
+
+    if (discount_code) {
+      // Try discount_codes first
+      const dc = await queryOne<{
+        id: string; type: string; value: number; usage_limit: number | null;
+        usage_count: number; valid_from: string | null; valid_until: string | null;
+        status: string; event_id: string | null;
+        applies_to_ticket_type_ids: string[] | null;
+      }>(
+        `SELECT id, type, value, usage_limit, usage_count, valid_from, valid_until,
+                status, event_id, applies_to_ticket_type_ids
+         FROM discount_codes WHERE UPPER(code) = UPPER($1)`,
+        [discount_code]
+      );
+
+      if (dc) {
+        if (dc.status !== 'active') return NextResponse.json({ error: 'Invalid or inactive promo code' }, { status: 400 });
+        if (dc.event_id && dc.event_id !== event.id) return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
+        const now = new Date();
+        if (dc.valid_from && new Date(dc.valid_from) > now) return NextResponse.json({ error: 'Promo code not yet active' }, { status: 400 });
+        if (dc.valid_until && new Date(dc.valid_until) < now) return NextResponse.json({ error: 'Promo code has expired' }, { status: 400 });
+        if (dc.usage_limit !== null && dc.usage_count >= dc.usage_limit) return NextResponse.json({ error: 'Promo code usage limit reached' }, { status: 400 });
+
+        if (dc.applies_to_ticket_type_ids?.length) {
+          if (!dc.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id))) {
+            return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
+          }
+        }
+
+        discountId = dc.id;
+        discountAmount = dc.type === 'percentage'
+          ? Math.round(totalAmount * (Number(dc.value) / 100) * 100) / 100
+          : Math.min(Number(dc.value), totalAmount);
+
+      } else {
+        // Try promoters.promo_code
+        const promo = await queryOne<{
+          id: string; status: string; event_id: string | null;
+          applies_to_ticket_type_ids: string[] | null;
+          discount_code_id: string | null;
+        }>(
+          `SELECT id, status, event_id, applies_to_ticket_type_ids, discount_code_id
+           FROM promoters WHERE UPPER(promo_code) = UPPER($1)`,
+          [discount_code]
+        );
+
+        if (!promo) return NextResponse.json({ error: 'Invalid promo code' }, { status: 400 });
+        if (promo.status !== 'active') return NextResponse.json({ error: 'This promo code is no longer active' }, { status: 400 });
+        if (promo.event_id && promo.event_id !== event.id) return NextResponse.json({ error: 'Promo code not valid for this event' }, { status: 400 });
+
+        if (promo.applies_to_ticket_type_ids?.length) {
+          if (!promo.applies_to_ticket_type_ids.some(id => cartTicketTypeIds.includes(id))) {
+            return NextResponse.json({ error: 'Promo code not valid for the tickets in this order' }, { status: 400 });
+          }
+        }
+
+        promoterId = promo.id;
+
+        // Apply linked discount if present
+        if (promo.discount_code_id) {
+          const linkedDc = await queryOne<{ id: string; type: string; value: number; status: string }>(
+            `SELECT id, type, value, status FROM discount_codes WHERE id = $1`,
+            [promo.discount_code_id]
+          );
+          if (linkedDc && linkedDc.status === 'active') {
+            discountId = linkedDc.id;
+            discountAmount = linkedDc.type === 'percentage'
+              ? Math.round(totalAmount * (Number(linkedDc.value) / 100) * 100) / 100
+              : Math.min(Number(linkedDc.value), totalAmount);
+          }
+        }
+      }
+
+      totalAmount = Math.max(0, totalAmount - discountAmount);
+    }
+
+    // ── Create order in DB ──────────────────────────────────────────────────────
+    const orderId = uuidv4();
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `INSERT INTO orders (id, event_id, email, status, total_amount, addons_total, discount_code_id, promoter_id, affiliate_id, currency)
+         VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, 'EUR')`,
+        [orderId, event.id, email, totalAmount, addonsTotal, discountId, promoterId, affiliate_id ?? null]
+      );
+
+      for (const item of items) {
+        const tt = await queryOne<{ id: string; base_price: number; price_scaling: string; stock_total: number; stock_sold: number; price_tiers?: { valid_until: string; price: number; sort_order: number }[] }>(
+          `SELECT tt.*, json_agg(pt ORDER BY pt.sort_order) FILTER (WHERE pt.id IS NOT NULL) AS price_tiers
+           FROM ticket_types tt LEFT JOIN price_tiers pt ON pt.ticket_type_id = tt.id
+           WHERE tt.id = $1 GROUP BY tt.id`, [item.ticket_type_id]
+        );
+        const price = getCurrentPrice(tt as unknown as Parameters<typeof getCurrentPrice>[0]);
+        const orderItemId = uuidv4();
+
+        await client.query(
+          `INSERT INTO order_items (id, order_id, ticket_type_id, quantity, unit_price, subtotal)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [orderItemId, orderId, item.ticket_type_id, item.quantity, price, price * item.quantity]
+        );
+
+        for (const attendee of item.attendees) {
+          await client.query(
+            `INSERT INTO attendees
+               (id, order_id, ticket_type_id, order_item_id, qr_code,
+                first_name, last_name, email, phone, gender, role,
+                passport_number, residence_country, residence_city)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [
+              uuidv4(), orderId, item.ticket_type_id, orderItemId, uuidv4(),
+              attendee.first_name, attendee.last_name, attendee.email || email,
+              attendee.phone, attendee.gender, attendee.role,
+              attendee.passport_number, attendee.residence_country, attendee.residence_city,
+            ]
+          );
+        }
+      }
+
+      // Insert bundle order items
+      for (const bitem of bundleOrderItems) {
+        const orderItemId = uuidv4();
+        await client.query(
+          `INSERT INTO order_items (id, order_id, ticket_type_id, quantity, unit_price, subtotal)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [orderItemId, orderId, bitem.ticket_type_id, bitem.quantity, bitem.unit_price, bitem.unit_price * bitem.quantity]
+        );
+        for (const attendee of bitem.attendees) {
+          await client.query(
+            `INSERT INTO attendees
+               (id, order_id, ticket_type_id, order_item_id, qr_code,
+                first_name, last_name, email, phone, gender, role,
+                passport_number, residence_country, residence_city)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            [
+              uuidv4(), orderId, bitem.ticket_type_id, orderItemId, uuidv4(),
+              attendee.first_name, attendee.last_name, attendee.email || email,
+              attendee.phone, attendee.gender, attendee.role,
+              attendee.passport_number, attendee.residence_country, attendee.residence_city,
+            ]
+          );
+        }
+      }
+
+      // ── Insert add-ons + decrement stock + create vouchers ──────────────────
+      for (const { addon, quantity } of validatedAddons) {
+        const orderAddonId = uuidv4();
+        const unitPrice = Number(addon.price);
+        const subtotal = unitPrice * quantity;
+
+        await client.query(
+          `INSERT INTO order_addons (id, order_id, addon_id, quantity, unit_price, subtotal)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [orderAddonId, orderId, addon.id, quantity, unitPrice, subtotal]
+        );
+
+        // Decrement stock if limited
+        if (addon.stock_total !== null) {
+          await client.query(
+            `UPDATE event_addons SET stock_sold = stock_sold + $1 WHERE id = $2`,
+            [quantity, addon.id]
+          );
+        }
+
+        // Create one voucher row per unit when generates_voucher = true
+        if (addon.generates_voucher) {
+          for (let v = 0; v < quantity; v++) {
+            await client.query(
+              `INSERT INTO addon_vouchers (id, order_addon_id, order_id, addon_id, addon_name, qr_code)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [uuidv4(), orderAddonId, orderId, addon.id, addon.name_en, uuidv4()]
+            );
+          }
+        }
+      }
+
+      // Confirm seat reservations
+      if (seat_reservation_ids?.length) {
+        await client.query(
+          `UPDATE seat_reservations
+           SET order_id = $1, status = 'confirmed'
+           WHERE id = ANY($2::uuid[]) AND status = 'held'`,
+          [orderId, seat_reservation_ids]
+        );
+      }
+
+      // Increment discount code usage
+      if (discountId) {
+        await client.query(
+          `UPDATE discount_codes SET usage_count = usage_count + 1 WHERE id = $1`,
+          [discountId]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Create Stripe Coupon for discount (Stripe doesn't support negative line items)
+    let stripeCouponId: string | undefined;
+    if (discountAmount > 0) {
+      const coupon = await stripe.coupons.create({
+        amount_off: Math.round(discountAmount * 100),
+        currency: 'eur',
+        duration: 'once',
+        name: `Promo: ${discount_code}`,
+        max_redemptions: 1,
+      });
+      stripeCouponId = coupon.id;
+    }
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      customer_email: email,
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/order/${orderId}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/event/${event_slug}`,
+      metadata: { order_id: orderId },
+      ...(stripeCouponId ? { discounts: [{ coupon: stripeCouponId }] } : {}),
+    });
+
+    await query(
+      `UPDATE orders SET stripe_session_id = $1 WHERE id = $2`,
+      [session.id, orderId]
+    );
+
+    return NextResponse.json({ url: session.url });
+
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid request', details: err.errors }, { status: 400 });
+    }
+    console.error('Checkout error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

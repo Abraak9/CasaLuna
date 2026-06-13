@@ -125,17 +125,6 @@ export async function POST(req: NextRequest) {
         hour: '2-digit', minute: '2-digit',
       });
 
-      // Fetch confirmed seat labels for this order (empty array if no seat map)
-      const seatRows = await query<{ label: string }>(
-        `SELECT s.label
-         FROM seat_reservations sr
-         JOIN seats s ON s.id = sr.seat_id
-         WHERE sr.order_id = $1
-           AND sr.status = 'confirmed'
-         ORDER BY s.sort_order, s.label`,
-        [orderId]
-      );
-
       await sendOrderConfirmationEmail({
         toEmail: order.email,
         eventName: eventInfo.name_en || eventInfo.name_es,
@@ -148,7 +137,6 @@ export async function POST(req: NextRequest) {
           last_name: a.last_name,
           ticket_name: a.name_en || a.name_es,
         })),
-        seats: seatRows.map(r => r.label),
       });
     }
   }

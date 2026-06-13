@@ -17,11 +17,10 @@ interface SendConfirmationEmailParams {
   eventLocation: string;
   orderId: string;
   attendees: AttendeeTicket[];
-  seats?: string[];  // seat labels, e.g. ["A1", "A2"]
 }
 
 export async function sendOrderConfirmationEmail(params: SendConfirmationEmailParams) {
-  const { toEmail, eventName, eventDate, eventLocation, orderId, attendees, seats } = params;
+  const { toEmail, eventName, eventDate, eventLocation, orderId, attendees } = params;
 
   // Generate QR data URLs for each attendee
   const ticketsHtml = await Promise.all(
@@ -53,15 +52,6 @@ export async function sendOrderConfirmationEmail(params: SendConfirmationEmailPa
         <p style="margin:0 0 6px;color:#374151;">📅 ${eventDate}</p>
         <p style="margin:0;color:#374151;">📍 ${eventLocation}</p>
       </div>
-
-      ${seats && seats.length > 0 ? `
-      <div style="background:#fef9ee;border:1px solid #e8d5a0;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-        <p style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#b08830;margin:0 0 10px;">Your Seats</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${seats.map(label => `<span style="background:#fff8e6;border:1px solid #e8d5a0;border-radius:8px;padding:4px 14px;font-size:15px;font-weight:700;color:#9a7420;">${label}</span>`).join('')}
-        </div>
-      </div>
-      ` : ''}
 
       <p style="font-size:15px;color:#374151;">
         Your tickets are attached below. Present the QR code at the entrance — one per person.

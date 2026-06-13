@@ -1,0 +1,333 @@
+@import "tailwindcss";
+
+/* ─── CasaLuna Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Backgrounds — Warm Ivory theme */
+  --bg:          #0c0b09;
+  --surface:     #141210;
+  --surface-2:   #1a1814;
+  --surface-3:   #201e19;
+
+  /* Gold palette (from CasaLuna logo) */
+  --gold:        #c5a252;
+  --gold-light:  #e8d5a0;
+  --gold-dim:    rgba(197, 162, 82, 0.25);
+  --gold-subtle: rgba(197, 162, 82, 0.08);
+
+  /* Text — warm cream tones, no grey */
+  --text:        #f0e8d4;
+  --text-muted:  #c8b898;
+  --text-dim:    #a8926a;
+
+  /* Borders — warm-tinted */
+  --border:      rgba(197, 162, 82, 0.18);
+  --border-muted: rgba(240, 220, 180, 0.07);
+
+  /* Status */
+  --green:       #5cb88a;
+  --red:         #e05c5c;
+  --amber:       #e8a84a;
+  --blue:        #5c8be0;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Gold gradient utility ──────────────────────────────────────────── */
+.cl-gold {
+  background: linear-gradient(135deg, #c9a85c 0%, #e8d5a0 50%, #c9a85c 100%);
+}
+
+.cl-gold-text {
+  background: linear-gradient(135deg, #c9a85c 0%, #e8d5a0 60%, #c9a85c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.cl-gold-border {
+  border: 1px solid var(--border);
+}
+
+/* ─── Marquee (nordicoslo-style ticker) ──────────────────────────────── */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.cl-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cl-marquee-inner {
+  display: inline-flex;
+  animation: marquee 28s linear infinite;
+}
+
+/* ─── Fade up animation ──────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cl-fade-up {
+  animation: fadeUp 0.6s ease forwards;
+}
+
+/* ─── Public homepage ────────────────────────────────────────────────── */
+.event-row:hover {
+  background: var(--surface) !important;
+}
+
+/* ─── Shimmer animation (loading) ────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.cl-shimmer {
+  background: linear-gradient(90deg,
+    var(--surface) 25%,
+    var(--surface-2) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Card / Surface ─────────────────────────────────────────────────── */
+.cl-card {
+  background: var(--surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 16px;
+}
+
+.cl-card-gold {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────── */
+.cl-btn-gold {
+  background: linear-gradient(135deg, #c9a85c, #e8d5a0, #c9a85c);
+  background-size: 200% 100%;
+  color: #09090f;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: background-position 0.4s ease, opacity 0.2s;
+}
+
+.cl-btn-gold:hover {
+  background-position: 100% 0;
+  opacity: 0.92;
+}
+
+.cl-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--gold);
+}
+
+.cl-btn-ghost:hover {
+  background: var(--gold-subtle);
+}
+
+/* ─── Form inputs ────────────────────────────────────────────────────── */
+.cl-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border-muted);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.cl-input::placeholder {
+  color: var(--text-dim);
+}
+
+.cl-input:focus {
+  border-color: var(--gold);
+}
+
+.cl-input option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ─── Labels ─────────────────────────────────────────────────────────── */
+.cl-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ─── Badge / Status pills ───────────────────────────────────────────── */
+.cl-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.cl-badge-gold    { background: var(--gold-subtle); color: var(--gold); border: 1px solid var(--gold-dim); }
+.cl-badge-green   { background: rgba(92,184,138,0.12); color: var(--green); }
+.cl-badge-red     { background: rgba(224,92,92,0.12); color: var(--red); }
+.cl-badge-amber   { background: rgba(232,168,74,0.12); color: var(--amber); }
+.cl-badge-muted   { background: var(--surface-3); color: var(--text-muted); }
+
+/* ─── Toggle ─────────────────────────────────────────────────────────── */
+.cl-toggle {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-muted);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.cl-toggle.on {
+  background: linear-gradient(135deg, #c9a85c, #e8d5a0);
+  border-color: transparent;
+}
+
+.cl-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.cl-toggle.on .cl-toggle-thumb {
+  transform: translateX(18px);
+  background: #09090f;
+}
+
+/* ─── Admin Sidebar ──────────────────────────────────────────────────── */
+.cl-sidebar {
+  width: 240px;
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border-muted);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.cl-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  transition: color 0.15s, background 0.15s;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.cl-sidebar-link:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.cl-sidebar-link.active {
+  color: var(--gold);
+  background: var(--gold-subtle);
+}
+
+.cl-sidebar-section {
+  padding: 20px 12px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ─── Table ──────────────────────────────────────────────────────────── */
+.cl-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cl-table th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.cl-table td {
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.cl-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cl-table tr:hover td {
+  background: var(--surface-2);
+}
+
+/* ─── Stat card ──────────────────────────────────────────────────────── */
+.cl-stat {
+  background: var(--surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-muted); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ─── Selection ──────────────────────────────────────────────────────── */
+::selection {
+  background: var(--gold-dim);
+  color: var(--text);
+}

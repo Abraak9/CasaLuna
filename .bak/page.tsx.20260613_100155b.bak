@@ -852,25 +852,6 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {/* ── Selected Seats ── */}
-            {selectedSeats.length > 0 && seatMap && (
-              <div style={{ padding: '12px 0', borderTop: '1px solid var(--border-muted)' }}>
-                <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  Seats
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {selectedSeats.map(seatId => {
-                    const seat = seatMap.seats.find(s => s.id === seatId);
-                    return (
-                      <span key={seatId} style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gold)', background: 'var(--gold-subtle)', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 10px' }}>
-                        {seat?.label ?? seatId}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* ── Promo code ── */}
             <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '14px', marginTop: '4px' }}>
               {!appliedPromo ? (
